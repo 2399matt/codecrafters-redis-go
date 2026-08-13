@@ -19,8 +19,7 @@ func main() {
 			fmt.Printf("unable to accept client: %v", err)
 			continue
 		}
-		client := &Client{Conn: conn, send: make(chan string, 100)}
+		client := &Client{Conn: conn}
 		go client.handleClient()
-		go client.write()
 	}
 }
