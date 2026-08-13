@@ -6,6 +6,8 @@ import (
 	"os"
 )
 
+var storage = NewStorage()
+
 func main() {
 	fmt.Println("Logs from your program will appear here!")
 	listener, err := net.Listen("tcp", "0.0.0.0:6379")
