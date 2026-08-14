@@ -53,24 +53,35 @@ func handleCommand(value Value) string {
 }
 
 func handleLRange(value Value) string {
-	if len(value.Array) < 4 {
+	if len(value.Array) != 4 {
 		return encodeError("ERR missing arguments for 'LRANGE'")
 	}
 	key := value.Array[1].Str
 	var start, end int
 	var err error
 	if start, err = strconv.Atoi(value.Array[2].Str); err != nil {
-		return encodeEmptyArray()
+		return encodeError("ERR invalid start index for 'LRANGE'")
 	}
-	if end, err = strconv.Atoi(value.Array[3].Str); err != nil || start >= end {
+	if end, err = strconv.Atoi(value.Array[3].Str); err != nil {
 		return encodeEmptyArray()
 	}
 	entry, ok := storage.Get(key)
-	if !ok || start >= len(entry.List) {
+	if !ok {
 		return encodeEmptyArray()
 	}
+	length := len(entry.List)
+	if start < 0 {
+		start = max(length+start, 0)
+	}
+	if end < 0 {
+		end = length + end
+	}
+	if start > end || end < 0 || start >= length {
+		return encodeEmptyArray()
+	}
+	end = min(length-1, end)
+	fmt.Printf("Start: %d   End: %d\n", start, end)
 	values := make([]Value, 0)
-	end = min(len(entry.List)-1, end)
 	for i := start; i <= end; i++ {
 		values = append(values, Value{Type: BulkString, Str: entry.List[i]})
 	}
