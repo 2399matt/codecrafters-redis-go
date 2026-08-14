@@ -43,9 +43,32 @@ func handleCommand(value Value) string {
 		return handleSet(value)
 	case "GET":
 		return handleGet(value)
+	case "RPUSH":
+		return handleRpush(value)
 	default:
 		return encodeError("ERR unknown command")
 	}
+}
+
+func handleRpush(value Value) string {
+	if len(value.Array) < 3 {
+		return encodeError("ERR invalid usage of 'RPUSH'")
+	}
+	listName := value.Array[1].Str
+	args := make([]string, 0)
+	for i := 2; i < len(value.Array); i++ {
+		args = append(args, value.Array[i].Str)
+	}
+	entry := Entry{
+		Type: ListType,
+		List: args,
+	}
+	storage.Set(listName, entry)
+	currEntry, ok := storage.Get(listName)
+	if !ok {
+		return encodeError("ERR invalid key")
+	}
+	return encodeInteger(len(currEntry.List))
 }
 
 func handleSet(value Value) string {
@@ -75,7 +98,12 @@ func handleSet(value Value) string {
 			expiration = time.Now().Add(time.Duration(num) * time.Millisecond)
 		}
 	}
-	storage.Set(key, val, expiration)
+	entry := Entry{
+		Type:       StringType,
+		payload:    val,
+		expiration: expiration,
+	}
+	storage.Set(key, entry)
 	return encodeSimpleString("OK")
 }
 
@@ -87,5 +115,5 @@ func handleGet(value Value) string {
 	if !ok {
 		return encodeNullString()
 	}
-	return encodeBulkString(val)
+	return encodeBulkString(val.payload)
 }

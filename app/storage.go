@@ -5,7 +5,16 @@ import (
 	"time"
 )
 
+type ValueType int
+
+const (
+	StringType ValueType = iota
+	ListType
+)
+
 type Entry struct {
+	Type       ValueType
+	List       []string
 	payload    string
 	expiration time.Time
 }
@@ -22,26 +31,26 @@ func NewStorage() *Storage {
 	}
 }
 
-func (s *Storage) Set(key, value string, expiration time.Time) {
-	entry := Entry{
-		payload:    value,
-		expiration: expiration,
-	}
+func (s *Storage) Set(key string, entry Entry) {
+	// entry := Entry{
+	// 	payload:    value,
+	// 	expiration: expiration,
+	// }
 	s.mu.Lock()
 	s.table[key] = entry
 	s.mu.Unlock()
 }
 
-func (s *Storage) Get(key string) (string, bool) {
+func (s *Storage) Get(key string) (Entry, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	entry, ok := s.table[key]
 	if !ok {
-		return "", false
+		return Entry{}, false
 	}
 	if !entry.expiration.IsZero() && time.Now().After(entry.expiration) {
 		delete(s.table, key)
-		return "", false
+		return Entry{}, false
 	}
-	return entry.payload, true
+	return entry, true
 }
