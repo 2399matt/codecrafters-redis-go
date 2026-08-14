@@ -3,7 +3,9 @@ package main
 import (
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
+	"time"
 )
 
 type Client struct {
@@ -15,7 +17,7 @@ func (c *Client) handleClient() {
 	for {
 		val, err := parser.parse()
 		if err != nil {
-			fmt.Printf("Parsing error: %w", err)
+			fmt.Printf("Parsing error: %v", err)
 			c.Conn.Close()
 			return
 		}
@@ -52,7 +54,28 @@ func handleSet(value Value) string {
 	}
 	key := value.Array[1].Str
 	val := value.Array[2].Str
-	storage.Set(key, val)
+	var expiration time.Time
+	if len(value.Array) > 3 {
+		if len(value.Array) != 5 {
+			return encodeError("ERR syntax error")
+		}
+		option := strings.ToUpper(value.Array[3].Str)
+		switch option {
+		case "EX":
+			num, err := strconv.Atoi(value.Array[4].Str)
+			if err != nil {
+				return encodeError("ERR invalid expiration")
+			}
+			expiration = time.Now().Add(time.Duration(num) * time.Second)
+		case "PX":
+			num, err := strconv.Atoi(value.Array[4].Str)
+			if err != nil {
+				return encodeError("ERR invalid expiration")
+			}
+			expiration = time.Now().Add(time.Duration(num) * time.Millisecond)
+		}
+	}
+	storage.Set(key, val, expiration)
 	return encodeSimpleString("OK")
 }
 
