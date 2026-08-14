@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"sync"
 	"time"
 )
@@ -32,13 +33,29 @@ func NewStorage() *Storage {
 }
 
 func (s *Storage) Set(key string, entry Entry) {
-	// entry := Entry{
-	// 	payload:    value,
-	// 	expiration: expiration,
-	// }
 	s.mu.Lock()
 	s.table[key] = entry
 	s.mu.Unlock()
+}
+
+func (s *Storage) RPush(key string, values []string) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	entry, ok := s.table[key]
+	if !ok {
+		entry = Entry{
+			Type: ListType,
+			List: values,
+		}
+		s.table[key] = entry
+		return len(values), nil
+	}
+	if entry.Type != ListType {
+		return 0, fmt.Errorf("Invalid type, did not get list")
+	}
+	entry.List = append(entry.List, values...)
+	s.table[key] = entry
+	return len(entry.List), nil
 }
 
 func (s *Storage) Get(key string) (Entry, bool) {

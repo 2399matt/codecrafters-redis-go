@@ -59,16 +59,12 @@ func handleRpush(value Value) string {
 	for i := 2; i < len(value.Array); i++ {
 		args = append(args, value.Array[i].Str)
 	}
-	entry := Entry{
-		Type: ListType,
-		List: args,
+	if length, err := storage.RPush(listName, args); err != nil {
+		return encodeError("ERR invalid usage of RPUSH")
+	} else {
+		return encodeInteger(length)
 	}
-	storage.Set(listName, entry)
-	currEntry, ok := storage.Get(listName)
-	if !ok {
-		return encodeError("ERR invalid key")
-	}
-	return encodeInteger(len(currEntry.List))
+
 }
 
 func handleSet(value Value) string {
