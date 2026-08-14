@@ -47,9 +47,22 @@ func handleCommand(value Value) string {
 		return handleListPush(value)
 	case "LRANGE":
 		return handleLRange(value)
+	case "LLEN":
+		return handleLlen(value)
 	default:
 		return encodeError("ERR unknown command")
 	}
+}
+
+func handleLlen(value Value) string {
+	if len(value.Array) != 2 {
+		return encodeError("ERR missing argument for 'LLEN'")
+	}
+	entry, ok := storage.Get(value.Array[1].Str)
+	if !ok || entry.Type != ListType {
+		return encodeInteger(0)
+	}
+	return encodeInteger(len(entry.List))
 }
 
 func handleLRange(value Value) string {
