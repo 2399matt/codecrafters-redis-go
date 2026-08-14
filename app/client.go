@@ -57,15 +57,30 @@ func handleCommand(value Value) string {
 }
 
 func handlePop(value Value) string {
-	if len(value.Array) != 2 {
+	if len(value.Array) < 2 {
 		return encodeError("ERR missing argument for 'LPOP'")
 	}
+	toRemove := 1
+	var err error
+	if len(value.Array) == 3 {
+		toRemove, err = strconv.Atoi(value.Array[2].Str)
+		if err != nil {
+			return encodeError("ERR invalid index for 'LPOP'")
+		}
+	}
 	key := value.Array[1].Str
-	val := storage.ListPop(key)
-	if val == "" {
+	popped := storage.ListPop(toRemove, key)
+	if popped == nil {
 		return encodeNullString()
 	}
-	return encodeBulkString(val)
+	if len(popped) == 1 {
+		return encodeBulkString(popped[0])
+	}
+	vals := make([]Value, 0, len(popped))
+	for _, str := range popped {
+		vals = append(vals, Value{Type: BulkString, Str: str})
+	}
+	return encodeArray(vals)
 }
 
 func handleLlen(value Value) string {

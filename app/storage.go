@@ -64,17 +64,21 @@ func (s *Storage) ListPush(isRight bool, key string, values []string) (int, erro
 	return len(entry.List), nil
 }
 
-func (s *Storage) ListPop(key string) string {
+func (s *Storage) ListPop(toRemove int, key string) []string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	entry, ok := s.table[key]
 	if !ok || len(entry.List) == 0 {
-		return ""
+		return nil
 	}
-	res := entry.List[0]
-	entry.List = entry.List[1:]
+	toRemove = min(len(entry.List), toRemove)
+	popped := make([]string, 0, toRemove)
+	for i := 0; i < toRemove; i++ {
+		popped = append(popped, entry.List[i])
+	}
+	entry.List = entry.List[toRemove:]
 	s.table[key] = entry
-	return res
+	return popped
 }
 
 func (s *Storage) Get(key string) (Entry, bool) {
