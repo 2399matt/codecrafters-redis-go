@@ -139,6 +139,10 @@ func encodeInteger(val int) string {
 	return fmt.Sprintf(":%d\r\n", val)
 }
 
+func encodeEmptyArray() string {
+	return "*0\r\n"
+}
+
 func encodeArray(values []Value) string {
 	var result strings.Builder
 	result.WriteString(fmt.Sprintf("*%d\r\n", len(values)))

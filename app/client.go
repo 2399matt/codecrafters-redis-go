@@ -45,9 +45,36 @@ func handleCommand(value Value) string {
 		return handleGet(value)
 	case "RPUSH":
 		return handleRpush(value)
+	case "LRANGE":
+		return handleLRange(value)
 	default:
 		return encodeError("ERR unknown command")
 	}
+}
+
+func handleLRange(value Value) string {
+	if len(value.Array) < 4 {
+		return encodeError("ERR missing arguments for 'LRANGE'")
+	}
+	key := value.Array[1].Str
+	var start, end int
+	var err error
+	if start, err = strconv.Atoi(value.Array[2].Str); err != nil {
+		return encodeEmptyArray()
+	}
+	if end, err = strconv.Atoi(value.Array[3].Str); err != nil || start >= end {
+		return encodeEmptyArray()
+	}
+	entry, ok := storage.Get(key)
+	if !ok || start >= len(entry.List) {
+		return encodeEmptyArray()
+	}
+	values := make([]Value, 0)
+	end = min(len(entry.List)-1, end)
+	for i := start; i <= end; i++ {
+		values = append(values, Value{Type: BulkString, Str: entry.List[i]})
+	}
+	return encodeArray(values)
 }
 
 func handleRpush(value Value) string {
