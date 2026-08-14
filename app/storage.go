@@ -64,6 +64,19 @@ func (s *Storage) ListPush(isRight bool, key string, values []string) (int, erro
 	return len(entry.List), nil
 }
 
+func (s *Storage) ListPop(key string) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	entry, ok := s.table[key]
+	if !ok || len(entry.List) == 0 {
+		return ""
+	}
+	res := entry.List[0]
+	entry.List = entry.List[1:]
+	s.table[key] = entry
+	return res
+}
+
 func (s *Storage) Get(key string) (Entry, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

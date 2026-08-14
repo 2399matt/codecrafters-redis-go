@@ -49,9 +49,23 @@ func handleCommand(value Value) string {
 		return handleLRange(value)
 	case "LLEN":
 		return handleLlen(value)
+	case "LPOP":
+		return handlePop(value)
 	default:
 		return encodeError("ERR unknown command")
 	}
+}
+
+func handlePop(value Value) string {
+	if len(value.Array) != 2 {
+		return encodeError("ERR missing argument for 'LPOP'")
+	}
+	key := value.Array[1].Str
+	val := storage.ListPop(key)
+	if val == "" {
+		return encodeNullString()
+	}
+	return encodeBulkString(val)
 }
 
 func handleLlen(value Value) string {
