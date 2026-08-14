@@ -43,8 +43,8 @@ func handleCommand(value Value) string {
 		return handleSet(value)
 	case "GET":
 		return handleGet(value)
-	case "RPUSH":
-		return handleRpush(value)
+	case "RPUSH", "LPUSH":
+		return handleListPush(value)
 	case "LRANGE":
 		return handleLRange(value)
 	default:
@@ -88,16 +88,17 @@ func handleLRange(value Value) string {
 	return encodeArray(values)
 }
 
-func handleRpush(value Value) string {
+func handleListPush(value Value) string {
 	if len(value.Array) < 3 {
 		return encodeError("ERR invalid usage of 'RPUSH'")
 	}
+	cmd := value.Array[0].Str
 	listName := value.Array[1].Str
 	args := make([]string, 0)
 	for i := 2; i < len(value.Array); i++ {
 		args = append(args, value.Array[i].Str)
 	}
-	if length, err := storage.RPush(listName, args); err != nil {
+	if length, err := storage.ListPush(cmd == "RPUSH", listName, args); err != nil {
 		return encodeError("ERR invalid usage of RPUSH")
 	} else {
 		return encodeInteger(length)

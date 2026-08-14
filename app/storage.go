@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 )
@@ -38,7 +39,7 @@ func (s *Storage) Set(key string, entry Entry) {
 	s.mu.Unlock()
 }
 
-func (s *Storage) RPush(key string, values []string) (int, error) {
+func (s *Storage) ListPush(isRight bool, key string, values []string) (int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	entry, ok := s.table[key]
@@ -53,7 +54,12 @@ func (s *Storage) RPush(key string, values []string) (int, error) {
 	if entry.Type != ListType {
 		return 0, fmt.Errorf("Invalid type, did not get list")
 	}
-	entry.List = append(entry.List, values...)
+	if isRight {
+		entry.List = append(entry.List, values...)
+	} else {
+		slices.Reverse(values)
+		entry.List = append(values, entry.List...)
+	}
 	s.table[key] = entry
 	return len(entry.List), nil
 }
