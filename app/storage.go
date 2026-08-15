@@ -22,14 +22,16 @@ type Entry struct {
 }
 
 type Storage struct {
-	mu    *sync.RWMutex
-	table map[string]Entry
+	waiterPool *WaiterPool
+	mu         *sync.RWMutex
+	table      map[string]Entry
 }
 
 func NewStorage() *Storage {
 	return &Storage{
-		mu:    &sync.RWMutex{},
-		table: make(map[string]Entry),
+		mu:         &sync.RWMutex{},
+		table:      make(map[string]Entry),
+		waiterPool: NewWaiterPool(),
 	}
 }
 
@@ -39,6 +41,13 @@ func (s *Storage) Set(key string, entry Entry) {
 	s.mu.Unlock()
 }
 
+// func (s *Storage) BLpop(clientChan chan bool, key string) string {
+
+// }
+
+// TODO In here: rather than checkforwaiters, we can have a for loop on the values slice
+// we can constantly grab for a waiter in that loop, and send the value to the waiter. If no waiter: add to the entry list as normal
+// Then just set to storage as before.
 func (s *Storage) ListPush(isRight bool, key string, values []string) (int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -46,12 +55,10 @@ func (s *Storage) ListPush(isRight bool, key string, values []string) (int, erro
 	if !ok {
 		entry = Entry{
 			Type: ListType,
-			List: values,
+			List: make([]string, 0),
 		}
 		s.table[key] = entry
-		return len(values), nil
-	}
-	if entry.Type != ListType {
+	} else if entry.Type != ListType {
 		return 0, fmt.Errorf("Invalid type, did not get list")
 	}
 	if isRight {
@@ -60,15 +67,27 @@ func (s *Storage) ListPush(isRight bool, key string, values []string) (int, erro
 		slices.Reverse(values)
 		entry.List = append(values, entry.List...)
 	}
+	replyLen := len(entry.List)
+	for len(entry.List) > 0 {
+		waiter := s.waiterPool.getWaiter(key)
+		if waiter == nil {
+			break
+		}
+		waiter <- entry.List[0]
+		entry.List = entry.List[1:]
+	}
 	s.table[key] = entry
-	return len(entry.List), nil
+	return replyLen, nil
 }
 
-func (s *Storage) ListPop(toRemove int, key string) []string {
+func (s *Storage) ListPop(clientBLchan chan string, toRemove int, key string) []string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	entry, ok := s.table[key]
 	if !ok || len(entry.List) == 0 {
+		if clientBLchan != nil {
+			s.waiterPool.setWaiter(clientBLchan, key)
+		}
 		return nil
 	}
 	toRemove = min(len(entry.List), toRemove)

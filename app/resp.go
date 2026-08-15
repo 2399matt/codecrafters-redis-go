@@ -143,6 +143,10 @@ func encodeEmptyArray() string {
 	return "*0\r\n"
 }
 
+func encodeNullArray() string {
+	return "*-1\r\n"
+}
+
 func encodeArray(values []Value) string {
 	var result strings.Builder
 	result.WriteString(fmt.Sprintf("*%d\r\n", len(values)))

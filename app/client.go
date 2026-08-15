@@ -21,7 +21,7 @@ func (c *Client) handleClient() {
 			c.Conn.Close()
 			return
 		}
-		response := handleCommand(val)
+		response := handleCommand(c, val)
 		if _, err := c.Conn.Write([]byte(response)); err != nil {
 			c.Conn.Close()
 			return
@@ -29,7 +29,7 @@ func (c *Client) handleClient() {
 	}
 }
 
-func handleCommand(value Value) string {
+func handleCommand(client *Client, value Value) string {
 	if value.Type != Array || len(value.Array) == 0 {
 		return encodeError("ERR invalid command")
 	}
@@ -51,9 +51,41 @@ func handleCommand(value Value) string {
 		return handleLlen(value)
 	case "LPOP":
 		return handlePop(value)
+	case "BLPOP":
+		return client.handleBLpop(value)
 	default:
 		return encodeError("ERR unknown command")
 	}
+}
+
+// TODO when time support is added, we'll need to have a ticker.
+// if time runs out, we'll call the cleanup (true/false)
+// if false, then we have a value so we can branch off, otherwise close the channel immediately and reply with null
+
+func (client *Client) handleBLpop(value Value) string {
+	if len(value.Array) != 3 {
+		return encodeError("ERR invalid syntax for 'BLPOP'")
+	}
+	key := value.Array[1].Str
+	waiting := make(chan string, 1)
+	val := ""
+	vals := storage.ListPop(waiting, 1, key)
+	if len(vals) == 0 {
+		val = <-waiting
+	} else {
+		val = vals[0]
+	}
+	values := []Value{
+		{
+			Type: BulkString,
+			Str:  key,
+		},
+		{
+			Type: BulkString,
+			Str:  val,
+		},
+	}
+	return encodeArray(values)
 }
 
 func handlePop(value Value) string {
@@ -69,7 +101,7 @@ func handlePop(value Value) string {
 		}
 	}
 	key := value.Array[1].Str
-	popped := storage.ListPop(toRemove, key)
+	popped := storage.ListPop(nil, toRemove, key)
 	if popped == nil {
 		return encodeNullString()
 	}
