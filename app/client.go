@@ -53,6 +53,8 @@ func handleCommand(client *Client, value Value) string {
 		return handlePop(value)
 	case "BLPOP":
 		return client.handleBLpop(value)
+	case "TYPE":
+		return handleType(value)
 	default:
 		return encodeError("ERR unknown command")
 	}
@@ -242,4 +244,17 @@ func handleGet(value Value) string {
 		return encodeNullString()
 	}
 	return encodeBulkString(val.payload)
+}
+
+// only handling none/string for now
+func handleType(value Value) string {
+	if len(value.Array) < 2 {
+		return encodeError("ERR missing arguments for 'TYPE'")
+	}
+	key := value.Array[1].Str
+	_, ok := storage.Get(key)
+	if !ok {
+		return encodeSimpleString("none")
+	}
+	return encodeSimpleString("string")
 }
