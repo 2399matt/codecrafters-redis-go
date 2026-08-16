@@ -132,7 +132,7 @@ func encodeBulkString(response string) string {
 }
 
 func encodeError(errResponse string) string {
-	return fmt.Sprintf("-Error %s\r\n", errResponse)
+	return fmt.Sprintf("-%s\r\n", errResponse)
 }
 
 func encodeInteger(val int) string {

@@ -273,8 +273,17 @@ func handleXadd(value Value) string {
 	if len(value.Array) < 5 {
 		return encodeError("ERR missing arguments for 'XADD'")
 	}
+	var seq, ms int64
+	var err error
 	key := value.Array[1].Str
-	entryId := value.Array[2].Str
+	entryId := strings.Split(value.Array[2].Str, "-")
+	if ms, err = strconv.ParseInt(entryId[0], 10, 64); err != nil {
+		return encodeError("ERR invalid stream id")
+	}
+	if seq, err = strconv.ParseInt(entryId[1], 10, 64); err != nil {
+		return encodeError("ERR invalid stream id")
+	}
+	streamId := StreamID{ms, seq}
 	value.Array = value.Array[3:]
 	entries := make(map[string]string, 0)
 	for i := 0; i < len(value.Array)-1; i++ {
@@ -282,6 +291,8 @@ func handleXadd(value Value) string {
 		v := value.Array[i+1].Str
 		entries[k] = v
 	}
-	storage.xAdd(key, entryId, entries)
-	return encodeBulkString(entryId)
+	if err = storage.xAdd(key, streamId, entries); err != nil {
+		return encodeError(err.Error())
+	}
+	return encodeBulkString(fmt.Sprintf("%d-%d", ms, seq))
 }
