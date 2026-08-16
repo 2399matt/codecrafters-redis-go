@@ -1,6 +1,9 @@
 package main
 
-import "sync"
+import (
+	"slices"
+	"sync"
+)
 
 type Waiter struct {
 	ListName string
@@ -33,6 +36,22 @@ func (w *WaiterPool) getWaiter(listName string) chan string {
 		}
 	}
 	return nil
+}
+
+func (w *WaiterPool) removeWaiter(clientChan chan string, listName string) bool {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	for _, wait := range w.Waiters {
+		if wait.ListName == listName {
+			for i, ch := range wait.Clients {
+				if ch == clientChan {
+					wait.Clients = slices.Delete(wait.Clients, i, i+1)
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 func (w *WaiterPool) setWaiter(clientChan chan string, listName string) {

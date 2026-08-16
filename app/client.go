@@ -67,11 +67,28 @@ func (client *Client) handleBLpop(value Value) string {
 		return encodeError("ERR invalid syntax for 'BLPOP'")
 	}
 	key := value.Array[1].Str
+	duration, err := strconv.ParseFloat(value.Array[2].Str, 64)
+	if err != nil {
+		return encodeError("ERR invalid duration set for 'BLPOP'")
+	}
 	waiting := make(chan string, 1)
 	val := ""
 	vals := storage.ListPop(waiting, 1, key)
 	if len(vals) == 0 {
-		val = <-waiting
+		if duration == 0 {
+			val = <-waiting
+		} else {
+			timeout := time.After(time.Duration(duration * float64(time.Second)))
+			select {
+			case val = <-waiting:
+				break
+			case <-timeout:
+				if storage.waiterPool.removeWaiter(waiting, key) {
+					return encodeNullArray()
+				}
+				val = <-waiting
+			}
+		}
 	} else {
 		val = vals[0]
 	}
