@@ -12,6 +12,7 @@ type ValueType int
 const (
 	StringType ValueType = iota
 	ListType
+	StreamType
 )
 
 type Entry struct {
@@ -19,6 +20,7 @@ type Entry struct {
 	List       []string
 	payload    string
 	expiration time.Time
+	stream     *Stream // populate on Type == StreamType
 }
 
 type Storage struct {
@@ -112,4 +114,26 @@ func (s *Storage) Get(key string) (Entry, bool) {
 		return Entry{}, false
 	}
 	return entry, true
+}
+
+func (s *Storage) xAdd(key, entryId string, entries map[string]string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	entry, ok := s.table[key]
+	if !ok {
+		entry = Entry{
+			Type:   StreamType,
+			stream: &Stream{entries: make([]StreamEntry, 0)},
+		}
+		s.table[key] = entry
+	}
+	if entry.Type != StreamType {
+		return
+	}
+	streamEntry := StreamEntry{
+		id:     entryId,
+		fields: entries,
+	}
+	entry.stream.entries = append(entry.stream.entries, streamEntry)
+	s.table[key] = entry
 }

@@ -55,6 +55,8 @@ func handleCommand(client *Client, value Value) string {
 		return client.handleBLpop(value)
 	case "TYPE":
 		return handleType(value)
+	case "XADD":
+		return handleXadd(value)
 	default:
 		return encodeError("ERR unknown command")
 	}
@@ -252,9 +254,34 @@ func handleType(value Value) string {
 		return encodeError("ERR missing arguments for 'TYPE'")
 	}
 	key := value.Array[1].Str
-	_, ok := storage.Get(key)
+	entry, ok := storage.Get(key)
 	if !ok {
 		return encodeSimpleString("none")
 	}
-	return encodeSimpleString("string")
+	switch entry.Type {
+	case StreamType:
+		return encodeSimpleString("stream")
+	case StringType:
+		return encodeSimpleString("string")
+	case ListType:
+		return encodeSimpleString("list")
+	}
+	return encodeSimpleString("none")
+}
+
+func handleXadd(value Value) string {
+	if len(value.Array) < 5 {
+		return encodeError("ERR missing arguments for 'XADD'")
+	}
+	key := value.Array[1].Str
+	entryId := value.Array[2].Str
+	value.Array = value.Array[3:]
+	entries := make(map[string]string, 0)
+	for i := 0; i < len(value.Array)-1; i++ {
+		k := value.Array[i].Str
+		v := value.Array[i+1].Str
+		entries[k] = v
+	}
+	storage.xAdd(key, entryId, entries)
+	return encodeBulkString(entryId)
 }
