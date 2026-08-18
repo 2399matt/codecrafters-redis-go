@@ -11,6 +11,11 @@ import (
 // TODO look this over, very fucking confusing.
 // for full auto, ms = current time; seq = 0. (easier)
 
+type XReadResult struct {
+	key     string
+	entries []StreamEntry
+}
+
 type StreamID struct {
 	ms  int64
 	seq int64
@@ -136,7 +141,7 @@ func (s *Stream) xRange(start, end StreamID) []StreamEntry {
 		if idLess(entry.id, start) {
 			continue
 		}
-		if idLess(end, entry.id) {
+		if idGreater(entry.id, end) {
 			break
 		}
 		res = append(res, entry)
@@ -144,6 +149,23 @@ func (s *Stream) xRange(start, end StreamID) []StreamEntry {
 	return res
 }
 
+func (s *Stream) xRead(key string, id StreamID) XReadResult {
+	res := XReadResult{
+		key:     key,
+		entries: make([]StreamEntry, 0),
+	}
+	for _, entry := range s.entries {
+		if idGreater(entry.id, id) {
+			res.entries = append(res.entries, entry)
+		}
+	}
+	return res
+}
+
 func idLess(a, b StreamID) bool {
 	return a.ms < b.ms || (a.ms == b.ms && a.seq < b.seq)
+}
+
+func idGreater(a, b StreamID) bool {
+	return a.ms > b.ms || (a.ms == b.ms && a.seq > b.seq)
 }

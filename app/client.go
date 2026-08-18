@@ -8,6 +8,11 @@ import (
 	"time"
 )
 
+type XReadQuery struct {
+	key string
+	id  StreamID
+}
+
 type Client struct {
 	Conn net.Conn
 }
@@ -59,6 +64,8 @@ func handleCommand(client *Client, value Value) string {
 		return handleXadd(value)
 	case "XRANGE":
 		return handleXrange(value)
+	case "XREAD":
+		return handleXread(value)
 	default:
 		return encodeError("ERR unknown command")
 	}
@@ -313,18 +320,41 @@ func handleXrange(value Value) string {
 	}
 	values := make([]Value, 0)
 	for _, entry := range streamEntries {
-		fields := make([]Value, 0)
-		for _, f := range entry.fields {
-			fields = append(fields, Value{Type: BulkString, Str: f.key})
-			fields = append(fields, Value{Type: BulkString, Str: f.value})
+		values = append(values, encodeStreamEntry(entry))
+	}
+	return encodeArray(values)
+}
+
+func handleXread(value Value) string {
+	streamsIdx := -1
+	for i, v := range value.Array {
+		if strings.ToUpper(v.Str) == "STREAMS" {
+			streamsIdx = i
+			break
 		}
-		values = append(values, Value{
-			Type: Array,
-			Array: []Value{
-				Value{Type: BulkString, Str: fmt.Sprintf("%d-%d", entry.id.ms, entry.id.seq)},
-				Value{Type: Array, Array: fields},
-			},
-		})
+	}
+	if streamsIdx == -1 {
+		return encodeError("ERR syntax error")
+	}
+	rest := value.Array[streamsIdx+1:]
+	if len(rest) == 0 || len(rest)%2 != 0 {
+		return encodeError("ERR Unbalanced XREAD list")
+	}
+	n := len(rest) / 2
+	keyTokens := rest[:n]
+	idTokens := rest[n:]
+	queries := make([]XReadQuery, 0)
+	for i := range n {
+		id, err := parseRangeID(idTokens[i].Str, true)
+		if err != nil {
+			return encodeError(err.Error())
+		}
+		queries = append(queries, XReadQuery{key: keyTokens[i].Str, id: id})
+	}
+	xreads := storage.xRead(queries)
+	values := make([]Value, 0)
+	for _, read := range xreads {
+		values = append(values, encodeXReadResult(read))
 	}
 	return encodeArray(values)
 }

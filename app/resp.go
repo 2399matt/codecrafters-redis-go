@@ -159,3 +159,32 @@ func encodeArray(values []Value) string {
 func encodeNullString() string {
 	return "$-1\r\n"
 }
+
+func encodeStreamEntry(e StreamEntry) Value {
+	fields := make([]Value, 0)
+	for _, f := range e.fields {
+		fields = append(fields, Value{Type: BulkString, Str: f.key})
+		fields = append(fields, Value{Type: BulkString, Str: f.value})
+	}
+	return Value{
+		Type: Array,
+		Array: []Value{
+			{Type: BulkString, Str: fmt.Sprintf("%d-%d", e.id.ms, e.id.seq)},
+			{Type: Array, Array: fields},
+		},
+	}
+}
+
+func encodeXReadResult(r XReadResult) Value {
+	entryValues := make([]Value, 0)
+	for _, e := range r.entries {
+		entryValues = append(entryValues, encodeStreamEntry(e))
+	}
+	return Value{
+		Type: Array,
+		Array: []Value{
+			{Type: BulkString, Str: r.key},
+			{Type: Array, Array: entryValues},
+		},
+	}
+}

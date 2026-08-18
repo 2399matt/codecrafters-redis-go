@@ -20,7 +20,7 @@ type Entry struct {
 	List       []string
 	payload    string
 	expiration time.Time
-	stream     *Stream // populate on Type == StreamType
+	stream     *Stream
 }
 
 type Storage struct {
@@ -42,10 +42,6 @@ func (s *Storage) Set(key string, entry Entry) {
 	s.table[key] = entry
 	s.mu.Unlock()
 }
-
-// func (s *Storage) BLpop(clientChan chan bool, key string) string {
-
-// }
 
 // TODO In here: rather than checkforwaiters, we can have a for loop on the values slice
 // we can constantly grab for a waiter in that loop, and send the value to the waiter. If no waiter: add to the entry list as normal
@@ -144,4 +140,18 @@ func (s *Storage) xRange(key string, start, end StreamID) ([]StreamEntry, error)
 		return nil, fmt.Errorf("ERR mismatched key for stream operation")
 	}
 	return entry.stream.xRange(start, end), nil
+}
+
+func (s *Storage) xRead(queries []XReadQuery) []XReadResult {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	results := make([]XReadResult, 0)
+	for _, query := range queries {
+		entry, ok := s.table[query.key]
+		if !ok {
+			continue
+		}
+		results = append(results, entry.stream.xRead(query.key, query.id))
+	}
+	return results
 }
