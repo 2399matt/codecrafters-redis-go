@@ -9,8 +9,8 @@ func TestSeqGeneration(t *testing.T) {
 	storage := NewStorage()
 	req := IDRequest{ms: time.Now().UnixMilli(), seqAuto: true}
 	key := "test"
-	entries := map[string]string{
-		"foo": "bar",
+	entries := []StreamField{
+		StreamField{"foo", "bar"},
 	}
 	id, err := storage.xAdd(key, req, entries)
 	if err != nil {

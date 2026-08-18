@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -24,7 +25,12 @@ type IDRequest struct {
 
 type StreamEntry struct {
 	id     StreamID
-	fields map[string]string
+	fields []StreamField
+}
+
+type StreamField struct {
+	key   string
+	value string
 }
 
 type Stream struct {
@@ -32,7 +38,7 @@ type Stream struct {
 	lastID  StreamID
 }
 
-func (s *Stream) Add(req IDRequest, entries map[string]string) (StreamID, error) {
+func (s *Stream) Add(req IDRequest, entries []StreamField) (StreamID, error) {
 	id, err := s.createID(req)
 	if err != nil {
 		return StreamID{}, err
@@ -74,6 +80,25 @@ func parseID(raw string) (IDRequest, error) {
 	return IDRequest{ms: ms, seq: seq}, nil
 }
 
+func parseRangeID(raw string, isStart bool) (StreamID, error) {
+	parts := strings.Split(raw, "-")
+	ms, err := strconv.ParseInt(parts[0], 10, 64)
+	if err != nil {
+		return StreamID{}, fmt.Errorf("ERR invalid value for ms")
+	}
+	if len(parts) == 1 {
+		if isStart {
+			return StreamID{ms: ms, seq: 0}, nil
+		}
+		return StreamID{ms: ms, seq: math.MaxInt64}, nil
+	}
+	seq, err := strconv.ParseInt(parts[1], 10, 64)
+	if err != nil {
+		return StreamID{}, fmt.Errorf("ERR invalid value for seq")
+	}
+	return StreamID{ms: ms, seq: seq}, nil
+}
+
 func (s *Stream) createID(req IDRequest) (StreamID, error) {
 	if req.fullAuto {
 		ms := time.Now().UnixMilli()
@@ -97,4 +122,22 @@ func (s *Stream) createID(req IDRequest) (StreamID, error) {
 		return StreamID{}, err
 	}
 	return streamId, nil
+}
+
+func (s *Stream) xRange(start, end StreamID) []StreamEntry {
+	res := make([]StreamEntry, 0)
+	for _, entry := range s.entries {
+		if idLess(entry.id, start) {
+			continue
+		}
+		if idLess(end, entry.id) {
+			break
+		}
+		res = append(res, entry)
+	}
+	return res
+}
+
+func idLess(a, b StreamID) bool {
+	return a.ms < b.ms || (a.ms == b.ms && a.seq < b.seq)
 }

@@ -117,7 +117,7 @@ func (s *Storage) Get(key string) (Entry, bool) {
 	return entry, true
 }
 
-func (s *Storage) xAdd(key string, req IDRequest, entries map[string]string) (StreamID, error) {
+func (s *Storage) xAdd(key string, req IDRequest, entries []StreamField) (StreamID, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	entry, ok := s.table[key]
@@ -131,4 +131,17 @@ func (s *Storage) xAdd(key string, req IDRequest, entries map[string]string) (St
 		return StreamID{}, fmt.Errorf("Incorrect entry type")
 	}
 	return entry.stream.Add(req, entries)
+}
+
+func (s *Storage) xRange(key string, start, end StreamID) ([]StreamEntry, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	entry, ok := s.table[key]
+	if !ok {
+		return []StreamEntry{}, nil
+	}
+	if entry.Type != StreamType {
+		return nil, fmt.Errorf("ERR mismatched key for stream operation")
+	}
+	return entry.stream.xRange(start, end), nil
 }

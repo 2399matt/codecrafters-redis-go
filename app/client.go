@@ -57,6 +57,8 @@ func handleCommand(client *Client, value Value) string {
 		return handleType(value)
 	case "XADD":
 		return handleXadd(value)
+	case "XRANGE":
+		return handleXrange(value)
 	default:
 		return encodeError("ERR unknown command")
 	}
@@ -279,15 +281,50 @@ func handleXadd(value Value) string {
 		return encodeError(err.Error())
 	}
 	value.Array = value.Array[3:]
-	entries := make(map[string]string, 0)
+	entries := make([]StreamField, 0)
 	for i := 0; i < len(value.Array)-1; i++ {
 		k := value.Array[i].Str
 		v := value.Array[i+1].Str
-		entries[k] = v
+		entries = append(entries, StreamField{key: k, value: v})
 	}
 	if id, err := storage.xAdd(key, req, entries); err != nil {
 		return encodeError(err.Error())
 	} else {
 		return encodeBulkString(fmt.Sprintf("%d-%d", id.ms, id.seq))
 	}
+}
+
+func handleXrange(value Value) string {
+	if len(value.Array) != 4 {
+		return encodeError("ERR invalid syntax for 'XRANGE'")
+	}
+	key := value.Array[1].Str
+	start, err := parseRangeID(value.Array[2].Str, true)
+	if err != nil {
+		return encodeError(err.Error())
+	}
+	end, err := parseRangeID(value.Array[3].Str, false)
+	if err != nil {
+		return encodeError(err.Error())
+	}
+	streamEntries, err := storage.xRange(key, start, end)
+	if err != nil {
+		return encodeError(err.Error())
+	}
+	values := make([]Value, 0)
+	for _, entry := range streamEntries {
+		fields := make([]Value, 0)
+		for _, f := range entry.fields {
+			fields = append(fields, Value{Type: BulkString, Str: f.key})
+			fields = append(fields, Value{Type: BulkString, Str: f.value})
+		}
+		values = append(values, Value{
+			Type: Array,
+			Array: []Value{
+				Value{Type: BulkString, Str: fmt.Sprintf("%d-%d", entry.id.ms, entry.id.seq)},
+				Value{Type: Array, Array: fields},
+			},
+		})
+	}
+	return encodeArray(values)
 }
