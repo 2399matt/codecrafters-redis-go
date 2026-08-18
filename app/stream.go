@@ -84,6 +84,9 @@ func parseRangeID(raw string, isStart bool) (StreamID, error) {
 	if isStart && raw == "-" {
 		return StreamID{0, 0}, nil
 	}
+	if !isStart && raw == "+" {
+		return StreamID{math.MaxInt64, math.MaxInt64}, nil
+	}
 	parts := strings.Split(raw, "-")
 	ms, err := strconv.ParseInt(parts[0], 10, 64)
 	if err != nil {
