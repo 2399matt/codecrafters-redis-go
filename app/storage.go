@@ -142,6 +142,9 @@ func (s *Storage) xRange(key string, start, end StreamID) ([]StreamEntry, error)
 	return entry.stream.xRange(start, end), nil
 }
 
+// TODO For the BLOCK param, we only need ONE stream to populate a value.
+// Need a way to register the client as a waiter for EACH key given, and return on the first key that wakes up
+// Still need to unregister the waiter from ALL the keys when returning though.
 func (s *Storage) xRead(queries []XReadQuery) []XReadResult {
 	s.mu.Lock()
 	defer s.mu.Unlock()
