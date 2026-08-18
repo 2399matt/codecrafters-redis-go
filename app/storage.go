@@ -69,6 +69,7 @@ func (s *Storage) ListPush(isRight bool, key string, values []string) (int, erro
 		slices.Reverse(values)
 		entry.List = append(values, entry.List...)
 	}
+	// need to capture length before alerting waiters
 	replyLen := len(entry.List)
 	for len(entry.List) > 0 {
 		waiter := s.waiterPool.getWaiter(key)
@@ -126,8 +127,7 @@ func (s *Storage) xAdd(key string, req IDRequest, entries map[string]string) (St
 			stream: &Stream{entries: make([]StreamEntry, 0), lastID: StreamID{0, 0}},
 		}
 		s.table[key] = entry
-	}
-	if entry.Type != StreamType {
+	} else if entry.Type != StreamType {
 		return StreamID{}, fmt.Errorf("Incorrect entry type")
 	}
 	return entry.stream.Add(req, entries)

@@ -22,8 +22,6 @@ func NewWaiterPool() *WaiterPool {
 	}
 }
 
-// TODO need a cleanup function for when we add timeouts.
-// Can loop through and match on the channel
 func (w *WaiterPool) getWaiter(listName string) chan string {
 	w.mu.Lock()
 	defer w.mu.Unlock()
