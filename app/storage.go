@@ -24,6 +24,7 @@ type Entry struct {
 }
 
 type Storage struct {
+	swPool     *StreamWaiterPool
 	waiterPool *WaiterPool
 	mu         *sync.RWMutex
 	table      map[string]Entry
@@ -31,6 +32,7 @@ type Storage struct {
 
 func NewStorage() *Storage {
 	return &Storage{
+		swPool:     NewStreamWaiterPool(),
 		mu:         &sync.RWMutex{},
 		table:      make(map[string]Entry),
 		waiterPool: NewWaiterPool(),
@@ -126,6 +128,7 @@ func (s *Storage) xAdd(key string, req IDRequest, entries []StreamField) (Stream
 	} else if entry.Type != StreamType {
 		return StreamID{}, fmt.Errorf("Incorrect entry type")
 	}
+	s.swPool.alertAll(key)
 	return entry.stream.Add(req, entries)
 }
 
@@ -145,16 +148,29 @@ func (s *Storage) xRange(key string, start, end StreamID) ([]StreamEntry, error)
 // TODO For the BLOCK param, we only need ONE stream to populate a value.
 // Need a way to register the client as a waiter for EACH key given, and return on the first key that wakes up
 // Still need to unregister the waiter from ALL the keys when returning though.
-func (s *Storage) xRead(queries []XReadQuery) []XReadResult {
+func (s *Storage) xRead(clientChan chan struct{}, queries []XReadQuery) []XReadResult {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	//wasFound := false
 	results := make([]XReadResult, 0)
 	for _, query := range queries {
 		entry, ok := s.table[query.key]
 		if !ok {
 			continue
 		}
-		results = append(results, entry.stream.xRead(query.key, query.id))
+		xReadRes := entry.stream.xRead(query.key, query.id)
+		if len(xReadRes.entries) > 0 {
+			//wasFound = true
+			results = append(results, entry.stream.xRead(query.key, query.id))
+		}
 	}
+	if len(results) == 0 && clientChan != nil {
+		keys := make([]string, len(queries))
+		for i := range queries {
+			keys = append(keys, queries[i].key)
+		}
+		s.swPool.setWaiter(clientChan, keys)
+	}
+	// if len(results) == 0 && waitFlag {setWaiter}
 	return results
 }

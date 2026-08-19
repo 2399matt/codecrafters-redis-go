@@ -8,9 +8,6 @@ import (
 	"time"
 )
 
-// TODO look this over, very fucking confusing.
-// for full auto, ms = current time; seq = 0. (easier)
-
 type XReadResult struct {
 	key     string
 	entries []StreamEntry

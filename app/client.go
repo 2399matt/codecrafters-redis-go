@@ -326,7 +326,20 @@ func handleXrange(value Value) string {
 }
 
 func handleXread(value Value) string {
+	isBlocking := false
+	var xreads []XReadResult
+	var waiting chan struct{} = nil
+	var limit float64
+	var err error
 	streamsIdx := -1
+	if strings.ToUpper(value.Array[1].Str) == "BLOCK" {
+		isBlocking = true
+		limit, err = strconv.ParseFloat(value.Array[2].Str, 64)
+		if err != nil {
+			return encodeError("ERR invalid limit set for 'BLOCK'")
+		}
+		fmt.Printf("BLOCK SETUP FOR DURATION: %.2f\n", limit)
+	}
 	for i, v := range value.Array {
 		if strings.ToUpper(v.Str) == "STREAMS" {
 			streamsIdx = i
@@ -351,7 +364,28 @@ func handleXread(value Value) string {
 		}
 		queries = append(queries, XReadQuery{key: keyTokens[i].Str, id: id})
 	}
-	xreads := storage.xRead(queries)
+	if isBlocking {
+		waiting = make(chan struct{}, 1)
+		xreads = storage.xRead(waiting, queries)
+	} else {
+		xreads = storage.xRead(nil, queries)
+	}
+	fmt.Printf("LENGTH OF xreads: %d\n", len(xreads))
+	if len(xreads) == 0 && isBlocking {
+		waiting := make(chan struct{}, 1)
+		timeout := time.After(time.Duration(limit * float64(time.Millisecond)))
+		select {
+		case <-waiting:
+			xreads = storage.xRead(nil, queries)
+			fmt.Printf("Reads found: %d\n", len(xreads))
+			break
+		case <-timeout:
+			storage.swPool.removeWaiter(waiting)
+			close(waiting)
+			fmt.Printf("Timeout reached\n")
+			return encodeNullArray()
+		}
+	}
 	values := make([]Value, 0)
 	for _, read := range xreads {
 		values = append(values, encodeXReadResult(read))
