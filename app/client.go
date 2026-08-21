@@ -372,16 +372,16 @@ func handleXread(value Value) string {
 	}
 	fmt.Printf("LENGTH OF xreads: %d\n", len(xreads))
 	if len(xreads) == 0 && isBlocking {
-		waiting := make(chan struct{}, 1)
+		keys := keysFromQueries(queries)
 		timeout := time.After(time.Duration(limit * float64(time.Millisecond)))
 		select {
 		case <-waiting:
 			xreads = storage.xRead(nil, queries)
+			storage.swPool.removeWaiter(waiting, keys)
 			fmt.Printf("Reads found: %d\n", len(xreads))
 			break
 		case <-timeout:
-			storage.swPool.removeWaiter(waiting)
-			close(waiting)
+			storage.swPool.removeWaiter(waiting, keys)
 			fmt.Printf("Timeout reached\n")
 			return encodeNullArray()
 		}

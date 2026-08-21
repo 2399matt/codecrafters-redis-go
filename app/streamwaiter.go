@@ -5,46 +5,45 @@ import (
 	"sync"
 )
 
-type StreamWaiter struct {
-	StreamKeys []string
-	Clients    []chan struct{}
-}
-
 type StreamWaiterPool struct {
-	mu      *sync.Mutex
-	Waiters []*StreamWaiter
+	mu *sync.Mutex
+	//Waiters []*StreamWaiter
+	Waiters map[string][]chan struct{}
 }
 
 func NewStreamWaiterPool() *StreamWaiterPool {
 	return &StreamWaiterPool{
 		mu:      &sync.Mutex{},
-		Waiters: make([]*StreamWaiter, 0),
+		Waiters: make(map[string][]chan struct{}, 0),
 	}
 }
 
 func (sw *StreamWaiterPool) alertAll(streamKey string) {
 	sw.mu.Lock()
 	defer sw.mu.Unlock()
-	for _, w := range sw.Waiters {
-		if slices.Contains(w.StreamKeys, streamKey) {
-			for _, ch := range w.Clients {
-				select {
-				case ch <- struct{}{}:
-				default:
-				}
-			}
+	for _, ch := range sw.Waiters[streamKey] {
+		select {
+		case ch <- struct{}{}:
+		default:
 		}
 	}
 }
 
-func (sw *StreamWaiterPool) removeWaiter(clientChan chan struct{}) {
+func (sw *StreamWaiterPool) removeWaiter(clientChan chan struct{}, keys []string) {
 	sw.mu.Lock()
 	defer sw.mu.Unlock()
-	for _, wait := range sw.Waiters {
-		for i, c := range wait.Clients {
+	for _, key := range keys {
+		clients := sw.Waiters[key]
+		for i, c := range clients {
 			if c == clientChan {
-				wait.Clients = slices.Delete(wait.Clients, i, i+1)
+				clients = slices.Delete(sw.Waiters[key], i, i+1)
+				break
 			}
+		}
+		if len(sw.Waiters[key]) == 0 {
+			delete(sw.Waiters, key)
+		} else {
+			sw.Waiters[key] = clients
 		}
 	}
 }
@@ -53,14 +52,6 @@ func (sw *StreamWaiterPool) setWaiter(clientChan chan struct{}, streamKeys []str
 	sw.mu.Lock()
 	defer sw.mu.Unlock()
 	for _, key := range streamKeys {
-		for _, w := range sw.Waiters {
-			if slices.Contains(w.StreamKeys, key) {
-				w.Clients = append(w.Clients, clientChan)
-			}
-		}
+		sw.Waiters[key] = append(sw.Waiters[key], clientChan)
 	}
-	clients := make([]chan struct{}, 0)
-	clients = append(clients, clientChan)
-	waiter := &StreamWaiter{StreamKeys: streamKeys, Clients: clients}
-	sw.Waiters = append(sw.Waiters, waiter)
 }

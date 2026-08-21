@@ -151,7 +151,6 @@ func (s *Storage) xRange(key string, start, end StreamID) ([]StreamEntry, error)
 func (s *Storage) xRead(clientChan chan struct{}, queries []XReadQuery) []XReadResult {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	//wasFound := false
 	results := make([]XReadResult, 0)
 	for _, query := range queries {
 		entry, ok := s.table[query.key]
@@ -160,17 +159,20 @@ func (s *Storage) xRead(clientChan chan struct{}, queries []XReadQuery) []XReadR
 		}
 		xReadRes := entry.stream.xRead(query.key, query.id)
 		if len(xReadRes.entries) > 0 {
-			//wasFound = true
 			results = append(results, entry.stream.xRead(query.key, query.id))
 		}
 	}
 	if len(results) == 0 && clientChan != nil {
-		keys := make([]string, len(queries))
-		for i := range queries {
-			keys = append(keys, queries[i].key)
-		}
+		keys := keysFromQueries(queries)
 		s.swPool.setWaiter(clientChan, keys)
 	}
-	// if len(results) == 0 && waitFlag {setWaiter}
 	return results
+}
+
+func keysFromQueries(queries []XReadQuery) []string {
+	keys := make([]string, 0, len(queries))
+	for i := range queries {
+		keys = append(keys, queries[i].key)
+	}
+	return keys
 }
