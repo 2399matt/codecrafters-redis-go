@@ -122,7 +122,7 @@ func (s *Storage) xAdd(key string, req IDRequest, entries []StreamField) (Stream
 	if !ok {
 		entry = Entry{
 			Type:   StreamType,
-			stream: &Stream{entries: make([]StreamEntry, 0), lastID: StreamID{0, 0}},
+			stream: &Stream{entries: make([]StreamEntry, 0), lastID: StreamID{ms: 0, seq: 0}},
 		}
 		s.table[key] = entry
 	} else if entry.Type != StreamType {
@@ -157,6 +157,9 @@ func (s *Storage) xRead(clientChan chan struct{}, queries []XReadQuery) []XReadR
 		if !ok {
 			continue
 		}
+		// if query.id.lastEntry {
+		// 	query.id = entry.stream.lastID
+		// }
 		xReadRes := entry.stream.xRead(query.key, query.id)
 		if len(xReadRes.entries) > 0 {
 			results = append(results, entry.stream.xRead(query.key, query.id))
@@ -175,4 +178,12 @@ func keysFromQueries(queries []XReadQuery) []string {
 		keys = append(keys, queries[i].key)
 	}
 	return keys
+}
+
+func (s *Storage) getLastStreamID(streamKey string) StreamID {
+	entry, ok := s.table[streamKey]
+	if ok {
+		return entry.stream.lastID
+	}
+	return StreamID{}
 }

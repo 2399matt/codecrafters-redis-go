@@ -14,8 +14,9 @@ type XReadResult struct {
 }
 
 type StreamID struct {
-	ms  int64
-	seq int64
+	ms            int64
+	seq           int64
+	needLastEntry bool
 }
 
 type IDRequest struct {
@@ -83,11 +84,14 @@ func parseID(raw string) (IDRequest, error) {
 }
 
 func parseRangeID(raw string, isStart bool) (StreamID, error) {
+	if raw == "$" {
+		return StreamID{needLastEntry: true}, nil
+	}
 	if isStart && raw == "-" {
-		return StreamID{0, 0}, nil
+		return StreamID{ms: 0, seq: 0}, nil
 	}
 	if !isStart && raw == "+" {
-		return StreamID{math.MaxInt64, math.MaxInt64}, nil
+		return StreamID{ms: math.MaxInt64, seq: math.MaxInt64}, nil
 	}
 	parts := strings.Split(raw, "-")
 	ms, err := strconv.ParseInt(parts[0], 10, 64)
