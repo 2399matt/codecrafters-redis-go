@@ -171,22 +171,31 @@ func (s *Storage) xRead(clientChan chan struct{}, queries []XReadQuery) []XReadR
 }
 
 func (s *Storage) increment(key string) (int, error) {
+	var val int
+	var err error
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	entry, ok := s.table[key]
 	if !ok {
-
+		val = 1
+		entry = Entry{
+			Type:    StringType,
+			payload: fmt.Sprintf("%d", val),
+		}
+		s.table[key] = entry
 	}
 	if entry.Type != StringType {
 		return 0, fmt.Errorf("ERR value is not an integer or out of range")
 	}
-	val, err := strconv.Atoi(entry.payload)
-	if err != nil {
-		return 0, fmt.Errorf("ERR value is not an integer or out of range")
+	if ok {
+		val, err = strconv.Atoi(entry.payload)
+		if err != nil {
+			return 0, fmt.Errorf("ERR value is not an integer or out of range")
+		}
+		val++
+		entry.payload = fmt.Sprintf("%d", val)
+		s.table[key] = entry
 	}
-	val++
-	entry.payload = fmt.Sprintf("%d", val)
-	s.table[key] = entry
 	return val, nil
 }
 
