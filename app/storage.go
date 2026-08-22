@@ -157,9 +157,6 @@ func (s *Storage) xRead(clientChan chan struct{}, queries []XReadQuery) []XReadR
 		if !ok {
 			continue
 		}
-		// if query.id.lastEntry {
-		// 	query.id = entry.stream.lastID
-		// }
 		xReadRes := entry.stream.xRead(query.key, query.id)
 		if len(xReadRes.entries) > 0 {
 			results = append(results, entry.stream.xRead(query.key, query.id))
