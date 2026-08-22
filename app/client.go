@@ -66,6 +66,8 @@ func handleCommand(client *Client, value Value) string {
 		return handleXrange(value)
 	case "XREAD":
 		return handleXread(value)
+	case "INCR":
+		return handleIncrement(value)
 	default:
 		return encodeError("ERR unknown command")
 	}
@@ -400,4 +402,15 @@ func handleXread(value Value) string {
 		values = append(values, encodeXReadResult(read))
 	}
 	return encodeArray(values)
+}
+
+func handleIncrement(value Value) string {
+	if len(value.Array) != 2 {
+		return encodeError("ERR invalid arguments for 'INCR'")
+	}
+	val, err := storage.increment(value.Array[1].Str)
+	if err != nil {
+		return encodeError(err.Error())
+	}
+	return encodeInteger(val)
 }

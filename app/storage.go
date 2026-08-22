@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"slices"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -169,12 +170,24 @@ func (s *Storage) xRead(clientChan chan struct{}, queries []XReadQuery) []XReadR
 	return results
 }
 
-func keysFromQueries(queries []XReadQuery) []string {
-	keys := make([]string, 0, len(queries))
-	for i := range queries {
-		keys = append(keys, queries[i].key)
+func (s *Storage) increment(key string) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	entry, ok := s.table[key]
+	if !ok {
+
 	}
-	return keys
+	if entry.Type != StringType {
+		return 0, fmt.Errorf("ERR value is not an integer or out of range")
+	}
+	val, err := strconv.Atoi(entry.payload)
+	if err != nil {
+		return 0, fmt.Errorf("ERR value is not an integer or out of range")
+	}
+	val++
+	entry.payload = fmt.Sprintf("%d", val)
+	s.table[key] = entry
+	return val, nil
 }
 
 func (s *Storage) getLastStreamID(streamKey string) StreamID {
@@ -183,4 +196,12 @@ func (s *Storage) getLastStreamID(streamKey string) StreamID {
 		return entry.stream.lastID
 	}
 	return StreamID{}
+}
+
+func keysFromQueries(queries []XReadQuery) []string {
+	keys := make([]string, 0, len(queries))
+	for i := range queries {
+		keys = append(keys, queries[i].key)
+	}
+	return keys
 }
