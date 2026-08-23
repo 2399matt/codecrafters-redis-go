@@ -83,9 +83,16 @@ func handleCommand(c *Client, value Value) string {
 		return handleDiscard(c)
 	case "WATCH":
 		return handleWatch(c, value)
+	case "UNWATCH":
+		return handleUnwatch(c)
 	default:
 		return encodeError("ERR unknown command")
 	}
+}
+
+func handleUnwatch(c *Client) string {
+	clear(c.watchQueue)
+	return encodeSimpleString("OK")
 }
 
 func handleWatch(c *Client, value Value) string {
@@ -129,10 +136,6 @@ func handleExec(c *Client) string {
 	}
 	var result strings.Builder
 	result.WriteString(fmt.Sprintf("*%d\r\n", len(queue)))
-	// len check may not even be needed here for missing keys
-	if len(storage.watchkeys) != len(c.watchQueue) {
-		return encodeNullArray()
-	}
 	for _, val := range queue {
 		for k := range c.watchQueue {
 			if !storage.checkWatchQueue(k) {
