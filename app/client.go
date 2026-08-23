@@ -114,16 +114,17 @@ func handleWatch(c *Client, value Value) string {
 }
 
 func handleDiscard(c *Client) string {
+	defer clear(c.watchQueue)
 	if !c.isQueued {
 		return encodeError("ERR DISCARD without MULTI")
 	}
 	c.isQueued = false
 	c.queue = c.queue[:0]
-	clear(c.watchQueue)
 	return encodeSimpleString("OK")
 }
 
 func handleExec(c *Client) string {
+	defer clear(c.watchQueue)
 	if !c.isQueued {
 		return encodeError("ERR EXEC without MULTI")
 	}
@@ -144,7 +145,6 @@ func handleExec(c *Client) string {
 		}
 		result.WriteString(handleCommand(c, val))
 	}
-	clear(c.watchQueue)
 	return result.String()
 }
 
