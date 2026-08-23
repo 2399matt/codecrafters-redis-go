@@ -22,19 +22,25 @@ type Client struct {
 func (c *Client) handleClient() {
 	parser := NewParser(c.Conn)
 	for {
-		var response string
+		//var response string
 		val, err := parser.parse()
 		if err != nil {
 			fmt.Printf("Parsing error: %v", err)
 			c.Conn.Close()
 			return
 		}
-		if c.isQueued {
-			c.queue = append(c.queue, val)
-			response = encodeSimpleString("QUEUED")
-		} else {
-			response = handleCommand(c, val)
-		}
+		// if c.isQueued {
+		// 	if len(val.Array) != 0 && val.Array[0].Str == "EXEC" && len(c.queue) == 0 {
+		// 		c.isQueued = false
+		// 		response = encodeEmptyArray()
+		// 	} else {
+		// 		c.queue = append(c.queue, val)
+		// 		response = encodeSimpleString("QUEUED")
+		// 	}
+		// } else {
+		// 	response = handleCommand(c, val)
+		// }
+		response := handleCommand(c, val)
 		if _, err := c.Conn.Write([]byte(response)); err != nil {
 			c.Conn.Close()
 			return
@@ -42,11 +48,15 @@ func (c *Client) handleClient() {
 	}
 }
 
-func handleCommand(client *Client, value Value) string {
+func handleCommand(c *Client, value Value) string {
 	if value.Type != Array || len(value.Array) == 0 {
 		return encodeError("ERR invalid command")
 	}
 	command := strings.ToUpper(value.Array[0].Str)
+	if c.isQueued && command != "EXEC" && command != "MULTI" {
+		c.queue = append(c.queue, value)
+		return encodeSimpleString("QUEUED")
+	}
 	switch command {
 	case "PING":
 		return encodeSimpleString("PONG")
@@ -65,7 +75,7 @@ func handleCommand(client *Client, value Value) string {
 	case "LPOP":
 		return handlePop(value)
 	case "BLPOP":
-		return client.handleBLpop(value)
+		return c.handleBLpop(value)
 	case "TYPE":
 		return handleType(value)
 	case "XADD":
@@ -77,9 +87,9 @@ func handleCommand(client *Client, value Value) string {
 	case "INCR":
 		return handleIncrement(value)
 	case "MULTI":
-		return handleMulti(client)
+		return handleMulti(c)
 	case "EXEC":
-		return handleExec(client)
+		return handleExec(c)
 	default:
 		return encodeError("ERR unknown command")
 	}
@@ -89,17 +99,25 @@ func handleExec(c *Client) string {
 	if !c.isQueued {
 		return encodeError("ERR EXEC without MULTI")
 	}
+	c.isQueued = false
+	queue := c.queue
+	c.queue = c.queue[:0]
+	if len(queue) == 0 {
+		c.isQueued = false
+		return encodeEmptyArray()
+	}
 	var result strings.Builder
 	result.WriteString(fmt.Sprintf("*%d\r\n", len(c.queue)))
-	for _, val := range c.queue {
+	for _, val := range queue {
 		result.WriteString(handleCommand(c, val))
 	}
-	c.isQueued = false
-	c.queue = c.queue[:0]
 	return result.String()
 }
 
 func handleMulti(c *Client) string {
+	if c.isQueued {
+		return encodeError("ERR MULTI calls cannot be nested")
+	}
 	c.isQueued = true
 	return encodeSimpleString("OK")
 }
