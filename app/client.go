@@ -43,7 +43,7 @@ func handleCommand(c *Client, value Value) string {
 		return encodeError("ERR invalid command")
 	}
 	command := strings.ToUpper(value.Array[0].Str)
-	if c.isQueued && command != "EXEC" && command != "MULTI" && command != "DISCARD" {
+	if c.isQueued && command != "EXEC" && command != "MULTI" && command != "DISCARD" && command != "WATCH" {
 		c.queue = append(c.queue, value)
 		return encodeSimpleString("QUEUED")
 	}
@@ -83,15 +83,18 @@ func handleCommand(c *Client, value Value) string {
 	case "DISCARD":
 		return handleDiscard(c)
 	case "WATCH":
-		return handleWatch(value)
+		return handleWatch(c, value)
 	default:
 		return encodeError("ERR unknown command")
 	}
 }
 
-func handleWatch(value Value) string {
+func handleWatch(c *Client, value Value) string {
 	if len(value.Array) != 2 {
 		return encodeError("ERR invalid arguments for 'WATCH'")
+	}
+	if c.isQueued {
+		return encodeError("ERR WATCH inside MULTI is not allowed")
 	}
 	key := value.Array[1].Str
 	WatchKeys[key] = struct{}{}
