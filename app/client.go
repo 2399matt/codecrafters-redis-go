@@ -89,15 +89,20 @@ func handleCommand(c *Client, value Value) string {
 }
 
 func handleWatch(c *Client, value Value) string {
-	if len(value.Array) != 2 {
+	if len(value.Array) < 2 {
 		return encodeError("ERR invalid arguments for 'WATCH'")
 	}
 	if c.isQueued {
 		return encodeError("ERR WATCH inside MULTI is not allowed")
 	}
-	key := value.Array[1].Str
-	storage.addWatchKey(key)
-	c.watchQueue[key] = struct{}{}
+	keys := make([]string, 0, len(value.Array)-1)
+	for _, val := range value.Array {
+		keys = append(keys, val.Str)
+	}
+	storage.addWatchKeys(keys)
+	for _, key := range keys {
+		c.watchQueue[key] = struct{}{}
+	}
 	return encodeSimpleString("OK")
 }
 

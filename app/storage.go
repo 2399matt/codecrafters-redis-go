@@ -214,10 +214,12 @@ func (s *Storage) getLastStreamID(streamKey string) StreamID {
 	return StreamID{}
 }
 
-func (s *Storage) addWatchKey(key string) {
+func (s *Storage) addWatchKeys(keys []string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.watchkeys[key] = struct{}{}
+	for _, key := range keys {
+		s.watchkeys[key] = struct{}{}
+	}
 }
 
 func (s *Storage) checkWatchQueue(key string) bool {
