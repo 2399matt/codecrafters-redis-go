@@ -129,6 +129,10 @@ func handleExec(c *Client) string {
 	}
 	var result strings.Builder
 	result.WriteString(fmt.Sprintf("*%d\r\n", len(queue)))
+	// len check may not even be needed here for missing keys
+	if len(storage.watchkeys) != len(c.watchQueue) {
+		return encodeNullArray()
+	}
 	for _, val := range queue {
 		for k := range c.watchQueue {
 			if !storage.checkWatchQueue(k) {
