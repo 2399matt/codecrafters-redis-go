@@ -22,24 +22,12 @@ type Client struct {
 func (c *Client) handleClient() {
 	parser := NewParser(c.Conn)
 	for {
-		//var response string
 		val, err := parser.parse()
 		if err != nil {
 			fmt.Printf("Parsing error: %v", err)
 			c.Conn.Close()
 			return
 		}
-		// if c.isQueued {
-		// 	if len(val.Array) != 0 && val.Array[0].Str == "EXEC" && len(c.queue) == 0 {
-		// 		c.isQueued = false
-		// 		response = encodeEmptyArray()
-		// 	} else {
-		// 		c.queue = append(c.queue, val)
-		// 		response = encodeSimpleString("QUEUED")
-		// 	}
-		// } else {
-		// 	response = handleCommand(c, val)
-		// }
 		response := handleCommand(c, val)
 		if _, err := c.Conn.Write([]byte(response)); err != nil {
 			c.Conn.Close()
@@ -103,7 +91,6 @@ func handleExec(c *Client) string {
 	queue := c.queue
 	c.queue = c.queue[:0]
 	if len(queue) == 0 {
-		c.isQueued = false
 		return encodeEmptyArray()
 	}
 	var result strings.Builder
