@@ -29,6 +29,7 @@ type Storage struct {
 	waiterPool *WaiterPool
 	mu         *sync.RWMutex
 	table      map[string]Entry
+	watchkeys  map[string]struct{}
 }
 
 func NewStorage() *Storage {
@@ -37,12 +38,14 @@ func NewStorage() *Storage {
 		mu:         &sync.RWMutex{},
 		table:      make(map[string]Entry),
 		waiterPool: NewWaiterPool(),
+		watchkeys:  make(map[string]struct{}),
 	}
 }
 
 func (s *Storage) Set(key string, entry Entry) {
 	s.mu.Lock()
 	s.table[key] = entry
+	delete(s.watchkeys, key)
 	s.mu.Unlock()
 }
 
@@ -79,6 +82,7 @@ func (s *Storage) ListPush(isRight bool, key string, values []string) (int, erro
 		entry.List = entry.List[1:]
 	}
 	s.table[key] = entry
+	delete(s.watchkeys, key)
 	return replyLen, nil
 }
 
@@ -99,6 +103,7 @@ func (s *Storage) ListPop(clientBLchan chan string, toRemove int, key string) []
 	}
 	entry.List = entry.List[toRemove:]
 	s.table[key] = entry
+	delete(s.watchkeys, key)
 	return popped
 }
 
@@ -130,6 +135,7 @@ func (s *Storage) xAdd(key string, req IDRequest, entries []StreamField) (Stream
 		return StreamID{}, fmt.Errorf("Incorrect entry type")
 	}
 	s.swPool.alertAll(key)
+	delete(s.watchkeys, key)
 	return entry.stream.Add(req, entries)
 }
 
@@ -195,6 +201,7 @@ func (s *Storage) increment(key string) (int, error) {
 		val++
 		entry.payload = fmt.Sprintf("%d", val)
 		s.table[key] = entry
+		delete(s.watchkeys, key)
 	}
 	return val, nil
 }
@@ -205,6 +212,19 @@ func (s *Storage) getLastStreamID(streamKey string) StreamID {
 		return entry.stream.lastID
 	}
 	return StreamID{}
+}
+
+func (s *Storage) addWatchKey(key string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.watchkeys[key] = struct{}{}
+}
+
+func (s *Storage) checkWatchQueue(key string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, ok := s.watchkeys[key]
+	return ok
 }
 
 func keysFromQueries(queries []XReadQuery) []string {

@@ -8,17 +8,16 @@ import (
 	"time"
 )
 
-var WatchKeys = make(map[string]struct{}, 0)
-
 type XReadQuery struct {
 	key string
 	id  StreamID
 }
 
 type Client struct {
-	Conn     net.Conn
-	isQueued bool
-	queue    []Value
+	Conn       net.Conn
+	isQueued   bool
+	queue      []Value
+	watchQueue map[string]struct{}
 }
 
 func (c *Client) handleClient() {
@@ -97,7 +96,8 @@ func handleWatch(c *Client, value Value) string {
 		return encodeError("ERR WATCH inside MULTI is not allowed")
 	}
 	key := value.Array[1].Str
-	WatchKeys[key] = struct{}{}
+	storage.addWatchKey(key)
+	c.watchQueue[key] = struct{}{}
 	return encodeSimpleString("OK")
 }
 
@@ -107,6 +107,7 @@ func handleDiscard(c *Client) string {
 	}
 	c.isQueued = false
 	c.queue = c.queue[:0]
+	clear(c.watchQueue)
 	return encodeSimpleString("OK")
 }
 
@@ -124,14 +125,14 @@ func handleExec(c *Client) string {
 	var result strings.Builder
 	result.WriteString(fmt.Sprintf("*%d\r\n", len(queue)))
 	for _, val := range queue {
-		keys := getKeys(val)
-		for _, key := range keys {
-			if _, ok := WatchKeys[key]; ok {
-				return encodeNullString()
+		for k := range c.watchQueue {
+			if !storage.checkWatchQueue(k) {
+				return encodeNullArray()
 			}
 		}
 		result.WriteString(handleCommand(c, val))
 	}
+	clear(c.watchQueue)
 	return result.String()
 }
 

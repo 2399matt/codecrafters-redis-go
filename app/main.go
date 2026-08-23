@@ -20,7 +20,7 @@ func main() {
 			fmt.Printf("unable to accept client: %v", err)
 			continue
 		}
-		client := &Client{Conn: conn, queue: make([]Value, 0)}
+		client := &Client{Conn: conn, queue: make([]Value, 0), watchQueue: make(map[string]struct{})}
 		go client.handleClient()
 	}
 }
