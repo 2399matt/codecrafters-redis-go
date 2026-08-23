@@ -8,6 +8,8 @@ import (
 	"time"
 )
 
+var WatchKeys = make(map[string]struct{}, 0)
+
 type XReadQuery struct {
 	key string
 	id  StreamID
@@ -80,9 +82,20 @@ func handleCommand(c *Client, value Value) string {
 		return handleExec(c)
 	case "DISCARD":
 		return handleDiscard(c)
+	case "WATCH":
+		return handleWatch(value)
 	default:
 		return encodeError("ERR unknown command")
 	}
+}
+
+func handleWatch(value Value) string {
+	if len(value.Array) != 2 {
+		return encodeError("ERR invalid arguments for 'WATCH'")
+	}
+	key := value.Array[1].Str
+	WatchKeys[key] = struct{}{}
+	return encodeSimpleString("OK")
 }
 
 func handleDiscard(c *Client) string {
@@ -108,6 +121,12 @@ func handleExec(c *Client) string {
 	var result strings.Builder
 	result.WriteString(fmt.Sprintf("*%d\r\n", len(queue)))
 	for _, val := range queue {
+		keys := getKeys(val)
+		for _, key := range keys {
+			if _, ok := WatchKeys[key]; ok {
+				return encodeNullString()
+			}
+		}
 		result.WriteString(handleCommand(c, val))
 	}
 	return result.String()
