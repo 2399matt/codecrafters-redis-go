@@ -78,13 +78,29 @@ func handleCommand(client *Client, value Value) string {
 		return handleIncrement(value)
 	case "MULTI":
 		return handleMulti(client)
+	case "EXEC":
+		return handleExec(client)
 	default:
 		return encodeError("ERR unknown command")
 	}
 }
 
-func handleMulti(client *Client) string {
-	client.isQueued = true
+func handleExec(c *Client) string {
+	if !c.isQueued {
+		return encodeError("ERR EXEC without MULTI")
+	}
+	var result strings.Builder
+	result.WriteString(fmt.Sprintf("*%d\r\n", len(c.queue)))
+	for _, val := range c.queue {
+		result.WriteString(handleCommand(c, val))
+	}
+	c.isQueued = false
+	c.queue = c.queue[:0]
+	return result.String()
+}
+
+func handleMulti(c *Client) string {
+	c.isQueued = true
 	return encodeSimpleString("OK")
 }
 
