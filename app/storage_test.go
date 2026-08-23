@@ -40,3 +40,22 @@ func TestSetGet(t *testing.T) {
 		t.Errorf("Invalid value on retrieved entry. Expected 'bar', got %s", val.payload)
 	}
 }
+
+func TestStreamGet(t *testing.T) {
+	store := NewStorage()
+	key1 := "test1"
+	key2 := "test2"
+	req1 := IDRequest{
+		ms:  0,
+		seq: 0,
+	}
+	req2 := IDRequest{
+		ms:  1,
+		seq: 1,
+	}
+	store.xAdd(key1, req1, []StreamField{StreamField{"foo", "bar"}})
+	store.xAdd(key2, req2, []StreamField{StreamField{"apple", "orange"}})
+	if res1 := store.xRead(nil, []XReadQuery{XReadQuery{key1, StreamID{0, 0, false}}}); res1[0].entries[0].fields[0].value != "bar" {
+		t.Errorf("Expected %s got %s", "bar", res1[0].entries[0].fields[0].value)
+	}
+}

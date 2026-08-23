@@ -14,19 +14,27 @@ type XReadQuery struct {
 }
 
 type Client struct {
-	Conn net.Conn
+	Conn     net.Conn
+	isQueued bool
+	queue    []Value
 }
 
 func (c *Client) handleClient() {
 	parser := NewParser(c.Conn)
 	for {
+		var response string
 		val, err := parser.parse()
 		if err != nil {
 			fmt.Printf("Parsing error: %v", err)
 			c.Conn.Close()
 			return
 		}
-		response := handleCommand(c, val)
+		if c.isQueued {
+			c.queue = append(c.queue, val)
+			response = encodeSimpleString("QUEUED")
+		} else {
+			response = handleCommand(c, val)
+		}
 		if _, err := c.Conn.Write([]byte(response)); err != nil {
 			c.Conn.Close()
 			return
@@ -68,9 +76,16 @@ func handleCommand(client *Client, value Value) string {
 		return handleXread(value)
 	case "INCR":
 		return handleIncrement(value)
+	case "MULTI":
+		return handleMulti(client)
 	default:
 		return encodeError("ERR unknown command")
 	}
+}
+
+func handleMulti(client *Client) string {
+	client.isQueued = true
+	return encodeSimpleString("OK")
 }
 
 // TODO when time support is added, we'll need to have a ticker.
