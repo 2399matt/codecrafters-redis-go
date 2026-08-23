@@ -90,11 +90,12 @@ func handleExec(c *Client) string {
 	c.isQueued = false
 	queue := c.queue
 	c.queue = c.queue[:0]
+	fmt.Printf("EXEC called with %d commands in queue\n", len(queue))
 	if len(queue) == 0 {
 		return encodeEmptyArray()
 	}
 	var result strings.Builder
-	result.WriteString(fmt.Sprintf("*%d\r\n", len(c.queue)))
+	result.WriteString(fmt.Sprintf("*%d\r\n", len(queue)))
 	for _, val := range queue {
 		result.WriteString(handleCommand(c, val))
 	}
