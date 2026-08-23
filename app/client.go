@@ -41,7 +41,7 @@ func handleCommand(c *Client, value Value) string {
 		return encodeError("ERR invalid command")
 	}
 	command := strings.ToUpper(value.Array[0].Str)
-	if c.isQueued && command != "EXEC" && command != "MULTI" {
+	if c.isQueued && command != "EXEC" && command != "MULTI" && command != "DISCARD" {
 		c.queue = append(c.queue, value)
 		return encodeSimpleString("QUEUED")
 	}
@@ -78,9 +78,20 @@ func handleCommand(c *Client, value Value) string {
 		return handleMulti(c)
 	case "EXEC":
 		return handleExec(c)
+	case "DISCARD":
+		return handleDiscard(c)
 	default:
 		return encodeError("ERR unknown command")
 	}
+}
+
+func handleDiscard(c *Client) string {
+	if !c.isQueued {
+		return encodeError("ERR DISCARD without MULTI")
+	}
+	c.isQueued = false
+	c.queue = c.queue[:0]
+	return encodeSimpleString("OK")
 }
 
 func handleExec(c *Client) string {
