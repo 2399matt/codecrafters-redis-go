@@ -90,9 +90,15 @@ func handleCommand(c *Client, value Value) string {
 		return handleInfo(c, value)
 	case "REPLCONF":
 		return handleReplConf(c, value)
+	case "PSYNC":
+		return handlePsync(c, value)
 	default:
 		return encodeError("ERR unknown command")
 	}
+}
+
+func handlePsync(c *Client, value Value) string {
+	return encodeSimpleString(fmt.Sprintf("FULLRESYNC %s 0", c.server.config.masterReplID))
 }
 
 func handleReplConf(c *Client, value Value) string {

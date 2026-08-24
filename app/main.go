@@ -104,7 +104,7 @@ func (s *Server) initHandShake() {
 	}
 	val, err := parser.parse()
 	if err != nil || val.Str != "PONG" {
-		fmt.Printf("no OK from master: %v", err)
+		fmt.Printf("no PONG from master: %v", err)
 		os.Exit(1)
 	}
 	replConf := []Value{
@@ -150,8 +150,34 @@ func (s *Server) initHandShake() {
 			os.Exit(1)
 		}
 		val, err = parser.parse()
-		if err != nil {
+		if err != nil || val.Str != "OK" {
 			fmt.Printf("no OK from master: %v", err)
+			os.Exit(1)
+		}
+		psync := []Value{
+			{
+				Type: BulkString,
+				Str:  "PSYNC",
+			},
+			{
+				Type: BulkString,
+				Str:  "?",
+			},
+			{
+				Type: BulkString,
+				Str:  "-1",
+			},
+		}
+		if _, err := conn.Write([]byte(encodeArray(psync))); err != nil {
+			fmt.Printf("unable to send PSYNC to master: %v", err)
+			os.Exit(1)
+		}
+		if val, err = parser.parse(); err != nil {
+			fmt.Printf("err on master write: %v", err)
+			os.Exit(1)
+		}
+		if val.Type != SimpleString {
+			fmt.Printf("no simple string from master\n")
 			os.Exit(1)
 		}
 		return
