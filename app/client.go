@@ -85,9 +85,23 @@ func handleCommand(c *Client, value Value) string {
 		return handleWatch(c, value)
 	case "UNWATCH":
 		return handleUnwatch(c)
+	case "INFO":
+		return handleInfo(value)
 	default:
 		return encodeError("ERR unknown command")
 	}
+}
+
+func handleInfo(value Value) string {
+	if len(value.Array) < 2 {
+		return encodeError("ERR invalid arguments for 'INFO'")
+	}
+	//req := value.Array[1].Str
+	// switch req {
+	// case "replication":
+	// 	return encodeBulkString(fmt.Sprintf("role: %s", config.role))
+	// }
+	return encodeBulkString(fmt.Sprintf("role:%s", config.role))
 }
 
 func handleUnwatch(c *Client) string {
