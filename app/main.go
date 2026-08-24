@@ -10,8 +10,10 @@ import (
 var storage = NewStorage()
 
 type Config struct {
-	role string
-	port string
+	role             string
+	port             string
+	masterReplID     string
+	masterReplOffset int
 }
 
 var config *Config
@@ -43,8 +45,10 @@ func main() {
 func createConfig(role, port string) *Config {
 	if role == "master" {
 		return &Config{
-			role: role,
-			port: port,
+			role:             role,
+			port:             port,
+			masterReplID:     "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb",
+			masterReplOffset: 0,
 		}
 	}
 	// don't need to have the addr of the master yet

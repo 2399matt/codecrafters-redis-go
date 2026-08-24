@@ -101,7 +101,7 @@ func handleInfo(value Value) string {
 	// case "replication":
 	// 	return encodeBulkString(fmt.Sprintf("role: %s", config.role))
 	// }
-	return encodeBulkString(fmt.Sprintf("role:%s", config.role))
+	return encodeBulkString(fmt.Sprintf("role:%smaster_replid:%smaster_repl_offset:%d", config.role, config.masterReplID, config.masterReplOffset))
 }
 
 func handleUnwatch(c *Client) string {
