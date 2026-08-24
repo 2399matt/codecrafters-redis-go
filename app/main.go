@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
 	"net"
@@ -14,7 +15,13 @@ type Server struct {
 	storage   *Storage
 	isReplica bool
 	config    *Config
+	replicas  map[string]*Replica
 }
+
+type Replica struct {
+	conn net.Conn
+}
+
 type Config struct {
 	role             string
 	port             string
@@ -41,6 +48,7 @@ func main() {
 		storage:   NewStorage(),
 		isReplica: role != "master",
 		config:    config,
+		replicas:  make(map[string]*Replica),
 	}
 	if server.isReplica {
 		server.initHandShake()
@@ -82,6 +90,8 @@ func (s *Server) initHandShake() {
 		fmt.Printf("unable to reach master instance: %v", err)
 		os.Exit(1)
 	}
+	parser := NewParser(bufio.NewReader(conn))
+	defer conn.Close()
 	req := []Value{
 		{
 			Type: BulkString,
@@ -91,5 +101,59 @@ func (s *Server) initHandShake() {
 	if _, err := conn.Write([]byte(encodeArray(req))); err != nil {
 		fmt.Printf("unable to ping master: %v", err)
 		os.Exit(1)
+	}
+	val, err := parser.parse()
+	if err != nil || val.Str != "PONG" {
+		fmt.Printf("no OK from master: %v", err)
+		os.Exit(1)
+	}
+	replConf := []Value{
+		{
+			Type: BulkString,
+			Str:  "REPLCONF",
+		},
+		{
+			Type: BulkString,
+			Str:  "listening-port",
+		},
+		{
+			Type: BulkString,
+			Str:  s.config.port,
+		},
+	}
+	if _, err := conn.Write([]byte(encodeArray(replConf))); err != nil {
+		fmt.Printf("unable to send replconf: %v", err)
+		os.Exit(1)
+	}
+	val, err = parser.parse()
+	if err != nil {
+		fmt.Printf("no OK from master: %v", err)
+		os.Exit(1)
+	}
+	if val.Type == SimpleString && val.Str == "OK" {
+		replConf = []Value{
+			{
+				Type: BulkString,
+				Str:  "REPLCONF",
+			},
+			{
+				Type: BulkString,
+				Str:  "capa",
+			},
+			{
+				Type: BulkString,
+				Str:  "psync2",
+			},
+		}
+		if _, err := conn.Write([]byte(encodeArray(replConf))); err != nil {
+			fmt.Printf("unable to send replconf: %v", err)
+			os.Exit(1)
+		}
+		val, err = parser.parse()
+		if err != nil {
+			fmt.Printf("no OK from master: %v", err)
+			os.Exit(1)
+		}
+		return
 	}
 }

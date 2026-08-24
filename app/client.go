@@ -88,9 +88,27 @@ func handleCommand(c *Client, value Value) string {
 		return handleUnwatch(c)
 	case "INFO":
 		return handleInfo(c, value)
+	case "REPLCONF":
+		return handleReplConf(c, value)
 	default:
 		return encodeError("ERR unknown command")
 	}
+}
+
+func handleReplConf(c *Client, value Value) string {
+	if len(value.Array) < 2 {
+		return encodeError("ERR invalid arguments for 'REPLCONF'")
+	}
+	cmd := value.Array[1].Str
+	switch cmd {
+	case "listening-port":
+		c.server.replicas[value.Array[2].Str] = &Replica{conn: c.Conn}
+	case "capa":
+		break
+	default:
+		return encodeError("ERR invalid arguments for 'REPLCONF'")
+	}
+	return encodeSimpleString("OK")
 }
 
 func handleInfo(c *Client, value Value) string {
