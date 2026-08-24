@@ -17,6 +17,7 @@ type Client struct {
 	Conn       net.Conn
 	isQueued   bool
 	queue      []Value
+	server     *Server
 	watchQueue map[string]struct{}
 }
 
@@ -52,29 +53,29 @@ func handleCommand(c *Client, value Value) string {
 	case "ECHO":
 		return encodeBulkString(value.Array[1].Str)
 	case "SET":
-		return handleSet(value)
+		return handleSet(c, value)
 	case "GET":
-		return handleGet(value)
+		return handleGet(c, value)
 	case "RPUSH", "LPUSH":
-		return handleListPush(value)
+		return handleListPush(c, value)
 	case "LRANGE":
-		return handleLRange(value)
+		return handleLRange(c, value)
 	case "LLEN":
-		return handleLlen(value)
+		return handleLlen(c, value)
 	case "LPOP":
-		return handlePop(value)
+		return handlePop(c, value)
 	case "BLPOP":
-		return c.handleBLpop(value)
+		return handleBLpop(c, value)
 	case "TYPE":
-		return handleType(value)
+		return handleType(c, value)
 	case "XADD":
-		return handleXadd(value)
+		return handleXadd(c, value)
 	case "XRANGE":
-		return handleXrange(value)
+		return handleXrange(c, value)
 	case "XREAD":
-		return handleXread(value)
+		return handleXread(c, value)
 	case "INCR":
-		return handleIncrement(value)
+		return handleIncrement(c, value)
 	case "MULTI":
 		return handleMulti(c)
 	case "EXEC":
@@ -86,13 +87,13 @@ func handleCommand(c *Client, value Value) string {
 	case "UNWATCH":
 		return handleUnwatch(c)
 	case "INFO":
-		return handleInfo(value)
+		return handleInfo(c, value)
 	default:
 		return encodeError("ERR unknown command")
 	}
 }
 
-func handleInfo(value Value) string {
+func handleInfo(c *Client, value Value) string {
 	if len(value.Array) < 2 {
 		return encodeError("ERR invalid arguments for 'INFO'")
 	}
@@ -101,7 +102,7 @@ func handleInfo(value Value) string {
 	// case "replication":
 	// 	return encodeBulkString(fmt.Sprintf("role: %s", config.role))
 	// }
-	return encodeBulkString(fmt.Sprintf("role:%smaster_replid:%smaster_repl_offset:%d", config.role, config.masterReplID, config.masterReplOffset))
+	return encodeBulkString(fmt.Sprintf("role:%smaster_replid:%smaster_repl_offset:%d", c.server.config.role, c.server.config.masterReplID, c.server.config.masterReplOffset))
 }
 
 func handleUnwatch(c *Client) string {
@@ -120,7 +121,7 @@ func handleWatch(c *Client, value Value) string {
 	for _, val := range value.Array {
 		keys = append(keys, val.Str)
 	}
-	storage.addWatchKeys(keys)
+	c.server.storage.addWatchKeys(keys)
 	for _, key := range keys {
 		c.watchQueue[key] = struct{}{}
 	}
@@ -153,7 +154,7 @@ func handleExec(c *Client) string {
 	result.WriteString(fmt.Sprintf("*%d\r\n", len(queue)))
 	for _, val := range queue {
 		for k := range c.watchQueue {
-			if !storage.checkWatchQueue(k) {
+			if !c.server.storage.checkWatchQueue(k) {
 				return encodeNullArray()
 			}
 		}
@@ -174,7 +175,7 @@ func handleMulti(c *Client) string {
 // if time runs out, we'll call the cleanup (true/false)
 // if false, then we have a value so we can branch off, otherwise close the channel immediately and reply with null
 
-func (client *Client) handleBLpop(value Value) string {
+func handleBLpop(c *Client, value Value) string {
 	if len(value.Array) != 3 {
 		return encodeError("ERR invalid syntax for 'BLPOP'")
 	}
@@ -185,7 +186,7 @@ func (client *Client) handleBLpop(value Value) string {
 	}
 	waiting := make(chan string, 1)
 	val := ""
-	vals := storage.ListPop(waiting, 1, key)
+	vals := c.server.storage.ListPop(waiting, 1, key)
 	if len(vals) == 0 {
 		if duration == 0 {
 			val = <-waiting
@@ -195,7 +196,7 @@ func (client *Client) handleBLpop(value Value) string {
 			case val = <-waiting:
 				break
 			case <-timeout:
-				if storage.waiterPool.removeWaiter(waiting, key) {
+				if c.server.storage.waiterPool.removeWaiter(waiting, key) {
 					return encodeNullArray()
 				}
 				val = <-waiting
@@ -217,7 +218,7 @@ func (client *Client) handleBLpop(value Value) string {
 	return encodeArray(values)
 }
 
-func handlePop(value Value) string {
+func handlePop(c *Client, value Value) string {
 	if len(value.Array) < 2 {
 		return encodeError("ERR missing argument for 'LPOP'")
 	}
@@ -230,7 +231,7 @@ func handlePop(value Value) string {
 		}
 	}
 	key := value.Array[1].Str
-	popped := storage.ListPop(nil, toRemove, key)
+	popped := c.server.storage.ListPop(nil, toRemove, key)
 	if popped == nil {
 		return encodeNullString()
 	}
@@ -244,18 +245,18 @@ func handlePop(value Value) string {
 	return encodeArray(vals)
 }
 
-func handleLlen(value Value) string {
+func handleLlen(c *Client, value Value) string {
 	if len(value.Array) != 2 {
 		return encodeError("ERR missing argument for 'LLEN'")
 	}
-	entry, ok := storage.Get(value.Array[1].Str)
+	entry, ok := c.server.storage.Get(value.Array[1].Str)
 	if !ok || entry.Type != ListType {
 		return encodeInteger(0)
 	}
 	return encodeInteger(len(entry.List))
 }
 
-func handleLRange(value Value) string {
+func handleLRange(c *Client, value Value) string {
 	if len(value.Array) != 4 {
 		return encodeError("ERR missing arguments for 'LRANGE'")
 	}
@@ -268,7 +269,7 @@ func handleLRange(value Value) string {
 	if end, err = strconv.Atoi(value.Array[3].Str); err != nil {
 		return encodeEmptyArray()
 	}
-	entry, ok := storage.Get(key)
+	entry, ok := c.server.storage.Get(key)
 	if !ok {
 		return encodeEmptyArray()
 	}
@@ -291,7 +292,7 @@ func handleLRange(value Value) string {
 	return encodeArray(values)
 }
 
-func handleListPush(value Value) string {
+func handleListPush(c *Client, value Value) string {
 	if len(value.Array) < 3 {
 		return encodeError("ERR invalid usage of 'RPUSH'")
 	}
@@ -301,7 +302,7 @@ func handleListPush(value Value) string {
 	for i := 2; i < len(value.Array); i++ {
 		args = append(args, value.Array[i].Str)
 	}
-	if length, err := storage.ListPush(cmd == "RPUSH", listName, args); err != nil {
+	if length, err := c.server.storage.ListPush(cmd == "RPUSH", listName, args); err != nil {
 		return encodeError("ERR invalid usage of RPUSH")
 	} else {
 		return encodeInteger(length)
@@ -309,7 +310,7 @@ func handleListPush(value Value) string {
 
 }
 
-func handleSet(value Value) string {
+func handleSet(c *Client, value Value) string {
 	if len(value.Array) < 3 {
 		return encodeError("ERR Missing arguments for SET")
 	}
@@ -341,15 +342,15 @@ func handleSet(value Value) string {
 		payload:    val,
 		expiration: expiration,
 	}
-	storage.Set(key, entry)
+	c.server.storage.Set(key, entry)
 	return encodeSimpleString("OK")
 }
 
-func handleGet(value Value) string {
+func handleGet(c *Client, value Value) string {
 	if len(value.Array) < 2 {
 		return encodeError("ERR missing arguments for GET")
 	}
-	val, ok := storage.Get(value.Array[1].Str)
+	val, ok := c.server.storage.Get(value.Array[1].Str)
 	if !ok {
 		return encodeNullString()
 	}
@@ -357,12 +358,12 @@ func handleGet(value Value) string {
 }
 
 // only handling none/string for now
-func handleType(value Value) string {
+func handleType(c *Client, value Value) string {
 	if len(value.Array) < 2 {
 		return encodeError("ERR missing arguments for 'TYPE'")
 	}
 	key := value.Array[1].Str
-	entry, ok := storage.Get(key)
+	entry, ok := c.server.storage.Get(key)
 	if !ok {
 		return encodeSimpleString("none")
 	}
@@ -377,7 +378,7 @@ func handleType(value Value) string {
 	return encodeSimpleString("none")
 }
 
-func handleXadd(value Value) string {
+func handleXadd(c *Client, value Value) string {
 	if len(value.Array) < 5 {
 		return encodeError("ERR missing arguments for 'XADD'")
 	}
@@ -393,14 +394,14 @@ func handleXadd(value Value) string {
 		v := value.Array[i+1].Str
 		entries = append(entries, StreamField{key: k, value: v})
 	}
-	if id, err := storage.xAdd(key, req, entries); err != nil {
+	if id, err := c.server.storage.xAdd(key, req, entries); err != nil {
 		return encodeError(err.Error())
 	} else {
 		return encodeBulkString(fmt.Sprintf("%d-%d", id.ms, id.seq))
 	}
 }
 
-func handleXrange(value Value) string {
+func handleXrange(c *Client, value Value) string {
 	if len(value.Array) != 4 {
 		return encodeError("ERR invalid syntax for 'XRANGE'")
 	}
@@ -413,7 +414,7 @@ func handleXrange(value Value) string {
 	if err != nil {
 		return encodeError(err.Error())
 	}
-	streamEntries, err := storage.xRange(key, start, end)
+	streamEntries, err := c.server.storage.xRange(key, start, end)
 	if err != nil {
 		return encodeError(err.Error())
 	}
@@ -424,7 +425,7 @@ func handleXrange(value Value) string {
 	return encodeArray(values)
 }
 
-func handleXread(value Value) string {
+func handleXread(c *Client, value Value) string {
 	isBlocking := false
 	var xreads []XReadResult
 	var waiting chan struct{} = nil
@@ -462,33 +463,33 @@ func handleXread(value Value) string {
 			return encodeError(err.Error())
 		}
 		if id.needLastEntry {
-			id = storage.getLastStreamID(keyTokens[i].Str)
+			id = c.server.storage.getLastStreamID(keyTokens[i].Str)
 		}
 		queries = append(queries, XReadQuery{key: keyTokens[i].Str, id: id})
 	}
 	if isBlocking {
 		waiting = make(chan struct{}, 1)
-		xreads = storage.xRead(waiting, queries)
+		xreads = c.server.storage.xRead(waiting, queries)
 	} else {
-		xreads = storage.xRead(nil, queries)
+		xreads = c.server.storage.xRead(nil, queries)
 	}
 	fmt.Printf("LENGTH OF xreads: %d\n", len(xreads))
 	if len(xreads) == 0 && isBlocking {
 		keys := keysFromQueries(queries)
 		if limit == 0 {
 			<-waiting
-			xreads = storage.xRead(nil, queries)
-			storage.swPool.removeWaiter(waiting, keys)
+			xreads = c.server.storage.xRead(nil, queries)
+			c.server.storage.swPool.removeWaiter(waiting, keys)
 		} else {
 			timeout := time.After(time.Duration(limit * float64(time.Millisecond)))
 			select {
 			case <-waiting:
-				xreads = storage.xRead(nil, queries)
-				storage.swPool.removeWaiter(waiting, keys)
+				xreads = c.server.storage.xRead(nil, queries)
+				c.server.storage.swPool.removeWaiter(waiting, keys)
 				fmt.Printf("Reads found: %d\n", len(xreads))
 				break
 			case <-timeout:
-				storage.swPool.removeWaiter(waiting, keys)
+				c.server.storage.swPool.removeWaiter(waiting, keys)
 				fmt.Printf("Timeout reached\n")
 				return encodeNullArray()
 			}
@@ -501,11 +502,11 @@ func handleXread(value Value) string {
 	return encodeArray(values)
 }
 
-func handleIncrement(value Value) string {
+func handleIncrement(c *Client, value Value) string {
 	if len(value.Array) != 2 {
 		return encodeError("ERR invalid arguments for 'INCR'")
 	}
-	val, err := storage.increment(value.Array[1].Str)
+	val, err := c.server.storage.increment(value.Array[1].Str)
 	if err != nil {
 		return encodeError(err.Error())
 	}
