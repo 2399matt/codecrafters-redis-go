@@ -180,6 +180,12 @@ func (s *Server) initHandShake() {
 			fmt.Printf("no simple string from master\n")
 			os.Exit(1)
 		}
+		empty := getEmptyRdb()
+		bts := encodeRDBFile(empty)
+		if _, err := conn.Write([]byte(bts)); err != nil {
+			fmt.Printf("unable to send out RDB data: %v", err)
+			os.Exit(1)
+		}
 		return
 	}
 }

@@ -98,7 +98,8 @@ func handleCommand(c *Client, value Value) string {
 }
 
 func handlePsync(c *Client, value Value) string {
-	return encodeSimpleString(fmt.Sprintf("FULLRESYNC %s 0", c.server.config.masterReplID))
+	resync := encodeSimpleString(fmt.Sprintf("FULLRESYNC %s 0", c.server.config.masterReplID))
+	return resync + encodeRDBFile(getEmptyRdb())
 }
 
 func handleReplConf(c *Client, value Value) string {
