@@ -111,7 +111,7 @@ func commandRouter(c *Client, value Value, command string) string {
 }
 
 func handleWait(c *Client, value Value) string {
-	return encodeInteger(0)
+	return encodeInteger(len(c.server.replicas))
 }
 
 func handlePsync(c *Client, value Value) string {
