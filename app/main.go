@@ -15,11 +15,12 @@ import (
 //var storage = NewStorage()
 
 type Server struct {
-	storage   *Storage
-	isReplica bool
-	config    *Config
-	replicas  []*Replica
-	mu        *sync.Mutex
+	storage    *Storage
+	isReplica  bool
+	config     *Config
+	replicas   []*Replica
+	mu         *sync.Mutex
+	replOffset int64
 }
 
 type Replica struct {
@@ -185,7 +186,12 @@ func (s *Server) initHandShake() {
 			fmt.Printf("no simple string from master\n")
 			os.Exit(1)
 		}
-		go s.handleMaster(conn)
+		err := parser.parseRDB()
+		if err != nil {
+			fmt.Printf("unable to parse RDB binary: %v", err)
+			os.Exit(1)
+		}
+		go s.handleMaster(parser, conn)
 		return
 	}
 }
@@ -205,17 +211,24 @@ func (s *Server) propagate(value Value) {
 	}
 }
 
-func (s *Server) handleMaster(conn net.Conn) {
+func (s *Server) handleMaster(parser *Parser, conn net.Conn) {
 	master := &Client{Conn: conn, server: s}
 	defer conn.Close()
-	reader := bufio.NewReader(conn)
-	parser := NewParser(reader)
+	//reader := bufio.NewReader(conn)
+	//parser := NewParser(reader)
 	for {
 		val, err := parser.parse()
 		if err != nil {
 			fmt.Printf("Lost connection to master: %v", err)
 			return
 		}
-		handleCommand(master, val)
+		res := handleCommand(master, val)
+		if needsResponse(val) {
+			_, err := conn.Write([]byte(res))
+			if err != nil {
+				fmt.Printf("unable to write to master: %v", err)
+				return
+			}
+		}
 	}
 }

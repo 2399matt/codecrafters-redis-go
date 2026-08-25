@@ -188,3 +188,24 @@ func encodeXReadResult(r XReadResult) Value {
 		},
 	}
 }
+
+func (p *Parser) parseRDB() error {
+	first, err := p.reader.ReadByte()
+	if err != nil {
+		return err
+	}
+	if first != '$' {
+		return fmt.Errorf("expected bulk string for RDB")
+	}
+	lenBytes, err := p.readLine()
+	if err != nil {
+		return err
+	}
+	length, err := strconv.Atoi(string(lenBytes))
+	if err != nil {
+		return err
+	}
+	buf := make([]byte, length)
+	_, err = io.ReadFull(p.reader, buf)
+	return err
+}

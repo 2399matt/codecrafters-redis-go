@@ -19,3 +19,10 @@ func getEmptyRdb() []byte {
 func encodeRDBFile(rData []byte) string {
 	return fmt.Sprintf("$%d\r\n%s", len(rData), rData)
 }
+
+func needsResponse(value Value) bool {
+	if len(value.Array) >= 2 {
+		return value.Array[0].Str == "REPLCONF" && value.Array[1].Str == "GETACK"
+	}
+	return false
+}

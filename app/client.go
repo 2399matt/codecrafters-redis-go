@@ -128,6 +128,25 @@ func handleReplConf(c *Client, value Value) string {
 		c.replica = replica
 	case "capa":
 		break
+	case "GETACK":
+		if !c.server.isReplica {
+			return encodeError("ERR not a valid replica")
+		}
+		val := Value{Type: Array, Array: []Value{
+			{
+				Type: BulkString,
+				Str:  "REPLCONF",
+			},
+			{
+				Type: BulkString,
+				Str:  "ACK",
+			},
+			{
+				Type: BulkString,
+				Str:  strconv.FormatInt(c.server.replOffset, 10),
+			},
+		}}
+		return encodeArray(val.Array)
 	default:
 		return encodeError("ERR invalid arguments for 'REPLCONF'")
 	}
