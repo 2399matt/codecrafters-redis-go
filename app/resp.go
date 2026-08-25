@@ -23,8 +23,10 @@ type Value struct {
 	Array []Value
 }
 
+// offset here until i find a better place
 type Parser struct {
 	reader *bufio.Reader
+	offset int64
 }
 
 func NewParser(reader io.Reader) *Parser {
@@ -36,6 +38,7 @@ func (p *Parser) parse() (Value, error) {
 	if err != nil {
 		return Value{}, err
 	}
+	p.offset++
 	switch first {
 	case SimpleString:
 		text, err := p.readLine()
@@ -69,10 +72,12 @@ func (p *Parser) parse() (Value, error) {
 			return Value{}, err
 		}
 		buf := make([]byte, length+2)
-		if _, err := io.ReadFull(p.reader, buf); err != nil {
+		if n, err := io.ReadFull(p.reader, buf); err != nil {
 			return Value{}, err
+		} else {
+			p.offset += int64(n)
+			return Value{Type: BulkString, Str: string(buf[:length])}, nil
 		}
-		return Value{Type: BulkString, Str: string(buf[:length])}, nil
 	case Array:
 		text, err := p.readLine()
 		if err != nil {
@@ -100,6 +105,7 @@ func (p *Parser) readLine() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	p.offset += int64(len(line))
 	if len(line) < 2 || line[len(line)-2] != '\r' {
 		return nil, fmt.Errorf("Unknown format")
 	}
@@ -207,5 +213,7 @@ func (p *Parser) parseRDB() error {
 	}
 	buf := make([]byte, length)
 	_, err = io.ReadFull(p.reader, buf)
+	// not clean, but need to reset
+	p.offset = 0
 	return err
 }

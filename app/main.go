@@ -214,8 +214,6 @@ func (s *Server) propagate(value Value) {
 func (s *Server) handleMaster(parser *Parser, conn net.Conn) {
 	master := &Client{Conn: conn, server: s}
 	defer conn.Close()
-	//reader := bufio.NewReader(conn)
-	//parser := NewParser(reader)
 	for {
 		val, err := parser.parse()
 		if err != nil {
@@ -223,6 +221,7 @@ func (s *Server) handleMaster(parser *Parser, conn net.Conn) {
 			return
 		}
 		res := handleCommand(master, val)
+		s.replOffset = parser.offset
 		if needsResponse(val) {
 			_, err := conn.Write([]byte(res))
 			if err != nil {
