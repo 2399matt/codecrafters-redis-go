@@ -31,6 +31,7 @@ func (c *Client) handleClient() {
 			c.Conn.Close()
 			return
 		}
+		fmt.Printf("Received: %#v\n", val)
 		response := handleCommand(c, val)
 		if _, err := c.Conn.Write([]byte(response)); err != nil {
 			c.Conn.Close()
@@ -51,7 +52,7 @@ func handleCommand(c *Client, value Value) string {
 	isWrite := isWriteCommand(command)
 	res := commandRouter(c, value, command)
 	if isWrite && !strings.HasPrefix(res, string(Error)) {
-		go c.server.propagate(value)
+		c.server.propagate(value)
 	}
 	return res
 }

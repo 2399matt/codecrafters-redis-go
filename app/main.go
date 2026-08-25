@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -96,7 +97,6 @@ func (s *Server) initHandShake() {
 		os.Exit(1)
 	}
 	parser := NewParser(bufio.NewReader(conn))
-	defer conn.Close()
 	req := []Value{
 		{
 			Type: BulkString,
@@ -185,6 +185,7 @@ func (s *Server) initHandShake() {
 			fmt.Printf("no simple string from master\n")
 			os.Exit(1)
 		}
+		go s.handleMaster(conn)
 		return
 	}
 }
@@ -196,10 +197,25 @@ func (s *Server) propagate(value Value) {
 		if !r.listening {
 			continue
 		}
-		r.conn.SetWriteDeadline(time.Now().Add(200 * time.Millisecond))
+		r.conn.SetWriteDeadline(time.Now().Add(300 * time.Millisecond))
 		if _, err := r.conn.Write([]byte(encodeArray(value.Array))); err != nil {
-			s.replicas = append(s.replicas[:i], s.replicas[i+1:]...)
+			s.replicas = slices.Delete(s.replicas, i, i+1)
 			continue
 		}
+	}
+}
+
+func (s *Server) handleMaster(conn net.Conn) {
+	master := &Client{Conn: conn, server: s}
+	defer conn.Close()
+	reader := bufio.NewReader(conn)
+	parser := NewParser(reader)
+	for {
+		val, err := parser.parse()
+		if err != nil {
+			fmt.Printf("Lost connection to master: %v", err)
+			return
+		}
+		handleCommand(master, val)
 	}
 }
