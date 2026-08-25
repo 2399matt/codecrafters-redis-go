@@ -51,7 +51,7 @@ func handleCommand(c *Client, value Value) string {
 	}
 	isWrite := isWriteCommand(command)
 	res := commandRouter(c, value, command)
-	if isWrite && !strings.HasPrefix(res, string(Error)) {
+	if !c.server.isReplica && isWrite && !strings.HasPrefix(res, string(Error)) {
 		c.server.propagate(value)
 	}
 	return res
@@ -111,7 +111,35 @@ func commandRouter(c *Client, value Value, command string) string {
 }
 
 func handleWait(c *Client, value Value) string {
-	return encodeInteger(len(c.server.replicas))
+	if len(value.Array) != 3 {
+		return encodeError("ERR invalid arguments for 'WAIT'")
+	}
+	target, err := strconv.Atoi(value.Array[1].Str)
+	if err != nil {
+		return encodeError("ERR invalid target for 'WAIT'")
+	}
+	if target == 0 {
+		return encodeInteger(0)
+	}
+	timeout, err := strconv.Atoi(value.Array[2].Str)
+	if err != nil {
+		return encodeError("ERR invalid timeout for 'WAIT'")
+	}
+	c.server.sendGetAcks()
+	currOffset := c.server.replOffset
+	timer := time.NewTimer(time.Duration(timeout) * time.Millisecond)
+	defer timer.Stop()
+	for {
+		total := c.server.countAcks(currOffset)
+		if total >= target {
+			return encodeInteger(total)
+		}
+		select {
+		case <-c.server.ackChan:
+		case <-timer.C:
+			return encodeInteger(total)
+		}
+	}
 }
 
 func handlePsync(c *Client, value Value) string {
@@ -153,6 +181,17 @@ func handleReplConf(c *Client, value Value) string {
 			},
 		}}
 		return encodeArray(val.Array)
+	case "ACK":
+		offset, err := strconv.Atoi(value.Array[2].Str)
+		if err != nil {
+			return encodeError("ERR invalid ACK offset")
+		}
+		c.replica.replOffset = int64(offset)
+		select {
+		case c.server.ackChan <- struct{}{}:
+		default:
+		}
+		return ""
 	default:
 		return encodeError("ERR invalid arguments for 'REPLCONF'")
 	}
@@ -168,7 +207,7 @@ func handleInfo(c *Client, value Value) string {
 	// case "replication":
 	// 	return encodeBulkString(fmt.Sprintf("role: %s", config.role))
 	// }
-	return encodeBulkString(fmt.Sprintf("role:%smaster_replid:%smaster_repl_offset:%d", c.server.config.role, c.server.config.masterReplID, c.server.config.masterReplOffset))
+	return encodeBulkString(fmt.Sprintf("role:%smaster_replid:%smaster_repl_offset:%d", c.server.config.role, c.server.config.masterReplID, c.server.replOffset))
 }
 
 func handleUnwatch(c *Client) string {

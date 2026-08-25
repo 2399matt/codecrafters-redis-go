@@ -21,19 +21,20 @@ type Server struct {
 	replicas   []*Replica
 	mu         *sync.Mutex
 	replOffset int64
+	ackChan    chan struct{}
 }
 
 type Replica struct {
-	conn      net.Conn
-	listening bool
+	conn       net.Conn
+	listening  bool
+	replOffset int64
 }
 
 type Config struct {
-	role             string
-	port             string
-	masterReplID     string
-	masterReplOffset int
-	masterAddr       string
+	role         string
+	port         string
+	masterReplID string
+	masterAddr   string
 }
 
 var server *Server
@@ -56,6 +57,7 @@ func main() {
 		config:    config,
 		replicas:  make([]*Replica, 0),
 		mu:        &sync.Mutex{},
+		ackChan:   make(chan struct{}, 64),
 	}
 	if server.isReplica {
 		server.initHandShake()
@@ -75,10 +77,9 @@ func main() {
 func createConfig(role, port string) *Config {
 	if role == "master" {
 		return &Config{
-			role:             role,
-			port:             port,
-			masterReplID:     "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb",
-			masterReplOffset: 0,
+			role:         role,
+			port:         port,
+			masterReplID: "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb",
 		}
 	}
 	parts := strings.Split(role, " ")
@@ -199,16 +200,55 @@ func (s *Server) initHandShake() {
 func (s *Server) propagate(value Value) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	arr := []byte(encodeArray(value.Array))
+	s.replOffset += int64(len(arr))
 	for i, r := range s.replicas {
 		if !r.listening {
 			continue
 		}
 		r.conn.SetWriteDeadline(time.Now().Add(300 * time.Millisecond))
-		if _, err := r.conn.Write([]byte(encodeArray(value.Array))); err != nil {
+		if _, err := r.conn.Write(arr); err != nil {
 			s.replicas = slices.Delete(s.replicas, i, i+1)
 			continue
 		}
 	}
+}
+
+func (s *Server) sendGetAcks() {
+	arr := []Value{
+		{
+			Type: BulkString,
+			Str:  "REPLCONF",
+		},
+		{
+			Type: BulkString,
+			Str:  "GETACK",
+		},
+		{
+			Type: BulkString,
+			Str:  "*",
+		},
+	}
+	ackReq := encodeArray(arr)
+	for _, r := range s.replicas {
+		_, err := r.conn.Write([]byte(ackReq))
+		if err != nil {
+			continue
+		}
+	}
+}
+
+func (s *Server) countAcks(offset int64) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	count := 0
+	for _, r := range s.replicas {
+		// == breaking
+		if r.replOffset >= offset {
+			count++
+		}
+	}
+	return count
 }
 
 func (s *Server) handleMaster(parser *Parser, conn net.Conn) {
