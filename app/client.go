@@ -19,6 +19,7 @@ type Client struct {
 	queue      []Value
 	server     *Server
 	watchQueue map[string]struct{}
+	replica    *Replica
 }
 
 func (c *Client) handleClient() {
@@ -47,6 +48,15 @@ func handleCommand(c *Client, value Value) string {
 		c.queue = append(c.queue, value)
 		return encodeSimpleString("QUEUED")
 	}
+	isWrite := isWriteCommand(command)
+	res := commandRouter(c, value, command)
+	if isWrite && !strings.HasPrefix(res, string(Error)) {
+		go c.server.propagate(value)
+	}
+	return res
+}
+
+func commandRouter(c *Client, value Value, command string) string {
 	switch command {
 	case "PING":
 		return encodeSimpleString("PONG")
@@ -99,6 +109,9 @@ func handleCommand(c *Client, value Value) string {
 
 func handlePsync(c *Client, value Value) string {
 	resync := encodeSimpleString(fmt.Sprintf("FULLRESYNC %s 0", c.server.config.masterReplID))
+	if c.replica != nil {
+		c.replica.listening = true
+	}
 	return resync + encodeRDBFile(getEmptyRdb())
 }
 
@@ -109,7 +122,9 @@ func handleReplConf(c *Client, value Value) string {
 	cmd := value.Array[1].Str
 	switch cmd {
 	case "listening-port":
-		c.server.replicas[value.Array[2].Str] = &Replica{conn: c.Conn}
+		replica := &Replica{conn: c.Conn}
+		c.server.replicas = append(c.server.replicas, replica)
+		c.replica = replica
 	case "capa":
 		break
 	default:
@@ -536,4 +551,13 @@ func handleIncrement(c *Client, value Value) string {
 		return encodeError(err.Error())
 	}
 	return encodeInteger(val)
+}
+
+func isWriteCommand(command string) bool {
+	switch command {
+	case "SET", "RPUSH", "LPUSH", "LPOP", "BLPOP", "INCR", "XADD":
+		return true
+	default:
+		return false
+	}
 }

@@ -7,6 +7,8 @@ import (
 	"net"
 	"os"
 	"strings"
+	"sync"
+	"time"
 )
 
 //var storage = NewStorage()
@@ -15,11 +17,13 @@ type Server struct {
 	storage   *Storage
 	isReplica bool
 	config    *Config
-	replicas  map[string]*Replica
+	replicas  []*Replica
+	mu        *sync.Mutex
 }
 
 type Replica struct {
-	conn net.Conn
+	conn      net.Conn
+	listening bool
 }
 
 type Config struct {
@@ -48,7 +52,8 @@ func main() {
 		storage:   NewStorage(),
 		isReplica: role != "master",
 		config:    config,
-		replicas:  make(map[string]*Replica),
+		replicas:  make([]*Replica, 0),
+		mu:        &sync.Mutex{},
 	}
 	if server.isReplica {
 		server.initHandShake()
@@ -180,12 +185,21 @@ func (s *Server) initHandShake() {
 			fmt.Printf("no simple string from master\n")
 			os.Exit(1)
 		}
-		empty := getEmptyRdb()
-		bts := encodeRDBFile(empty)
-		if _, err := conn.Write([]byte(bts)); err != nil {
-			fmt.Printf("unable to send out RDB data: %v", err)
-			os.Exit(1)
-		}
 		return
+	}
+}
+
+func (s *Server) propagate(value Value) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i, r := range s.replicas {
+		if !r.listening {
+			continue
+		}
+		r.conn.SetWriteDeadline(time.Now().Add(200 * time.Millisecond))
+		if _, err := r.conn.Write([]byte(encodeArray(value.Array))); err != nil {
+			s.replicas = append(s.replicas[:i], s.replicas[i+1:]...)
+			continue
+		}
 	}
 }
