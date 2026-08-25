@@ -103,9 +103,15 @@ func commandRouter(c *Client, value Value, command string) string {
 		return handleReplConf(c, value)
 	case "PSYNC":
 		return handlePsync(c, value)
+	case "WAIT":
+		return handleWait(c, value)
 	default:
 		return encodeError("ERR unknown command")
 	}
+}
+
+func handleWait(c *Client, value Value) string {
+	return encodeInteger(0)
 }
 
 func handlePsync(c *Client, value Value) string {
