@@ -101,6 +101,8 @@ func createConfig(role, port, dbFilename, dir string) *Config {
 		role:       "slave",
 		port:       port,
 		masterAddr: fmt.Sprintf("%s:%s", host, nPort),
+		dbFilename: dbFilename,
+		dir:        dir,
 	}
 }
 

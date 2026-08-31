@@ -34,7 +34,9 @@ func needsResponse(value Value) bool {
 }
 
 func (s *Server) parseRDB() error {
-	file, err := os.OpenFile(filepath.Join(s.config.dir, s.config.dbFilename), os.O_RDONLY|os.O_CREATE, 0x644)
+	path := filepath.Join(s.config.dir, s.config.dbFilename)
+	fmt.Printf("PATH FOR RDB: %s\n", path)
+	file, err := os.OpenFile(path, os.O_RDONLY|os.O_CREATE, 0x644)
 	if err != nil {
 		return err
 	}
