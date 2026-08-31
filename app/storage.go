@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -220,6 +221,18 @@ func (s *Storage) addWatchKeys(keys []string) {
 	for _, key := range keys {
 		s.watchkeys[key] = struct{}{}
 	}
+}
+
+func (s *Storage) getKeys(target string) []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	res := make([]string, 0, len(s.table))
+	for k := range s.table {
+		if strings.HasPrefix(k, target) {
+			res = append(res, k)
+		}
+	}
+	return res
 }
 
 func (s *Storage) checkWatchQueue(key string) bool {

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
+	"log"
 	"net"
 	"os"
 	"slices"
@@ -35,6 +36,8 @@ type Config struct {
 	port         string
 	masterReplID string
 	masterAddr   string
+	dir          string
+	dbFilename   string
 }
 
 var server *Server
@@ -42,15 +45,19 @@ var server *Server
 func main() {
 	var port string
 	var role string
+	var dir string
+	var dbFilename string
 	flag.StringVar(&port, "port", "6379", "port to run redis instance on")
 	flag.StringVar(&role, "replicaof", "master", "master or replication redis instance")
+	flag.StringVar(&dir, "dir", "./", "Directory for RDB file")
+	flag.StringVar(&dbFilename, "dbfilename", "dump.rdb", "RDB file name")
 	flag.Parse()
 	listener, err := net.Listen("tcp", "0.0.0.0:"+port)
 	if err != nil {
 		fmt.Printf("Failed to bind to port %s\n", port)
 		os.Exit(1)
 	}
-	config := createConfig(role, port)
+	config := createConfig(role, port, dbFilename, dir)
 	server = &Server{
 		storage:   NewStorage(),
 		isReplica: role != "master",
@@ -61,6 +68,9 @@ func main() {
 	}
 	if server.isReplica {
 		server.initHandShake()
+	}
+	if err = server.parseRDB(); err != nil {
+		log.Fatalf("unable to load/create RDB file: %v", err)
 	}
 	fmt.Printf("Listening on port: %s\n", port)
 	for {
@@ -74,12 +84,14 @@ func main() {
 	}
 }
 
-func createConfig(role, port string) *Config {
+func createConfig(role, port, dbFilename, dir string) *Config {
 	if role == "master" {
 		return &Config{
 			role:         role,
 			port:         port,
 			masterReplID: "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb",
+			dbFilename:   dbFilename,
+			dir:          dir,
 		}
 	}
 	parts := strings.Split(role, " ")

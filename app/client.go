@@ -105,8 +105,51 @@ func commandRouter(c *Client, value Value, command string) string {
 		return handlePsync(c, value)
 	case "WAIT":
 		return handleWait(c, value)
+	case "CONFIG":
+		return handleConfig(c, value)
+	case "KEYS":
+		return handleKeys(c, value)
 	default:
 		return encodeError("ERR unknown command")
+	}
+}
+
+func handleKeys(c *Client, value Value) string {
+	if len(value.Array) < 2 {
+		return encodeError("ERR invalid arguments for 'KEYS'")
+	}
+	target := value.Array[1].Str
+	if target == "*" {
+		target = ""
+	}
+	keys := c.server.storage.getKeys(target)
+	vals := make([]Value, 0, len(keys))
+	for _, key := range keys {
+		vals = append(vals, Value{Type: BulkString, Str: key})
+	}
+	return encodeArray(vals)
+}
+
+func handleConfig(c *Client, value Value) string {
+	if len(value.Array) < 2 {
+		return encodeError("ERR invalid arguments for 'CONFIG'")
+	}
+	cmd := value.Array[1].Str
+	switch cmd {
+	case "GET":
+		if len(value.Array) < 3 {
+			return encodeError("missing value for 'GET'")
+		}
+		key := value.Array[2].Str
+		vals := make([]Value, 0, 2)
+		if key == "dir" {
+			vals = append(vals, Value{Type: BulkString, Str: key}, Value{Type: BulkString, Str: c.server.config.dir})
+		} else {
+			vals = append(vals, Value{Type: BulkString, Str: key}, Value{Type: BulkString, Str: c.server.config.dbFilename})
+		}
+		return encodeArray(vals)
+	default:
+		return encodeError("ERR unknown value passed for 'CONFIG GET'")
 	}
 }
 
@@ -142,6 +185,7 @@ func handleWait(c *Client, value Value) string {
 	}
 }
 
+// TODO Will probably need to add the actual repl offset here
 func handlePsync(c *Client, value Value) string {
 	resync := encodeSimpleString(fmt.Sprintf("FULLRESYNC %s 0", c.server.config.masterReplID))
 	if c.replica != nil {
@@ -202,11 +246,6 @@ func handleInfo(c *Client, value Value) string {
 	if len(value.Array) < 2 {
 		return encodeError("ERR invalid arguments for 'INFO'")
 	}
-	//req := value.Array[1].Str
-	// switch req {
-	// case "replication":
-	// 	return encodeBulkString(fmt.Sprintf("role: %s", config.role))
-	// }
 	return encodeBulkString(fmt.Sprintf("role:%smaster_replid:%smaster_repl_offset:%d", c.server.config.role, c.server.config.masterReplID, c.server.replOffset))
 }
 
