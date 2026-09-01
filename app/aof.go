@@ -25,7 +25,7 @@ func NewAOF(cfg *AOFConfig) (*AOF, error) {
 		config: cfg,
 		mu:     &sync.Mutex{},
 	}
-	if cfg.enabled {
+	if !cfg.enabled {
 		return aof, nil
 	}
 	path := filepath.Join(cfg.dir, cfg.dirName)
@@ -37,6 +37,7 @@ func NewAOF(cfg *AOFConfig) (*AOF, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer file.Close()
 	aof.file = file
 	return aof, nil
 }

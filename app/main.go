@@ -45,6 +45,7 @@ var server *Server
 
 func main() {
 	var appendOnly bool
+	var appendOnlyStr string
 	var appendDirName string
 	var appendfSync string
 	var appendFileName string
@@ -59,9 +60,11 @@ func main() {
 	flag.StringVar(&appendDirName, "appenddirname", "appendonlydir", "The subdirectory under dir where AOF and manifest files are stored")
 	flag.StringVar(&appendFileName, "appendfilename", "appendonly.aof", "The name of the append-only file that records write operations")
 	flag.StringVar(&appendfSync, "appendfsync", "everysec", "How often buffered writes are flushed to the AOF file on disk")
-	flag.BoolVar(&appendOnly, "appendonly", false, "Controls whether AOF persistence is enabled or disabled")
+	flag.StringVar(&appendOnlyStr, "appendonly", "no", "Controls whether AOF persistence is enabled or disabled")
 	flag.Parse()
-
+	if appendOnlyStr == "yes" {
+		appendOnly = true
+	}
 	listener, err := net.Listen("tcp", "0.0.0.0:"+port)
 	if err != nil {
 		fmt.Printf("Failed to bind to port %s\n", port)
@@ -69,6 +72,7 @@ func main() {
 	}
 	config := createConfig(role, port, dbFileName, dir)
 	aofCfg := &AOFConfig{enabled: appendOnly, dir: dir, dirName: appendDirName, fileName: appendFileName, appendfSync: appendfSync}
+	fmt.Printf("DIR NAME FOR AOF: %s\n", appendDirName)
 	aof, err := NewAOF(aofCfg)
 	if err != nil {
 		log.Fatalf("unable to instantiate AOF: %v", err)
