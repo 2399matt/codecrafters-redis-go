@@ -23,6 +23,7 @@ type Server struct {
 	mu         *sync.Mutex
 	replOffset int64
 	ackChan    chan struct{}
+	aof        *AOF
 }
 
 type Replica struct {
@@ -43,21 +44,35 @@ type Config struct {
 var server *Server
 
 func main() {
+	var appendOnly bool
+	var appendDirName string
+	var appendfSync string
+	var appendFileName string
 	var port string
 	var role string
 	var dir string
-	var dbFilename string
+	var dbFileName string
 	flag.StringVar(&port, "port", "6379", "port to run redis instance on")
 	flag.StringVar(&role, "replicaof", "master", "master or replication redis instance")
-	flag.StringVar(&dir, "dir", "./", "Directory for RDB file")
-	flag.StringVar(&dbFilename, "dbfilename", "dump.rdb", "RDB file name")
+	flag.StringVar(&dir, "dir", "/app", "Directory for RDB file")
+	flag.StringVar(&dbFileName, "dbfilename", "dump.rdb", "RDB file name")
+	flag.StringVar(&appendDirName, "appenddirname", "appendonlydir", "The subdirectory under dir where AOF and manifest files are stored")
+	flag.StringVar(&appendFileName, "appendfilename", "appendonly.aof", "The name of the append-only file that records write operations")
+	flag.StringVar(&appendfSync, "appendfsync", "everysec", "How often buffered writes are flushed to the AOF file on disk")
+	flag.BoolVar(&appendOnly, "appendonly", false, "Controls whether AOF persistence is enabled or disabled")
 	flag.Parse()
+
 	listener, err := net.Listen("tcp", "0.0.0.0:"+port)
 	if err != nil {
 		fmt.Printf("Failed to bind to port %s\n", port)
 		os.Exit(1)
 	}
-	config := createConfig(role, port, dbFilename, dir)
+	config := createConfig(role, port, dbFileName, dir)
+	aofCfg := &AOFConfig{enabled: appendOnly, dir: dir, dirName: appendDirName, fileName: appendFileName, appendfSync: appendfSync}
+	aof, err := NewAOF(aofCfg)
+	if err != nil {
+		log.Fatalf("unable to instantiate AOF: %v", err)
+	}
 	server = &Server{
 		storage:   NewStorage(),
 		isReplica: role != "master",
@@ -65,6 +80,7 @@ func main() {
 		replicas:  make([]*Replica, 0),
 		mu:        &sync.Mutex{},
 		ackChan:   make(chan struct{}, 64),
+		aof:       aof,
 	}
 	if server.isReplica {
 		server.initHandShake()

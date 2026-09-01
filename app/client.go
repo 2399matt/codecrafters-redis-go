@@ -142,14 +142,28 @@ func handleConfig(c *Client, value Value) string {
 		}
 		key := value.Array[2].Str
 		vals := make([]Value, 0, 2)
-		if key == "dir" {
-			vals = append(vals, Value{Type: BulkString, Str: key}, Value{Type: BulkString, Str: c.server.config.dir})
-		} else {
-			vals = append(vals, Value{Type: BulkString, Str: key}, Value{Type: BulkString, Str: c.server.config.dbFilename})
+		vals = append(vals, Value{Type: BulkString, Str: key})
+		switch key {
+		case "dir":
+			vals = append(vals, Value{Type: BulkString, Str: c.server.config.dir})
+		case "appendonly":
+			if c.server.aof.config.enabled {
+				vals = append(vals, Value{Type: BulkString, Str: "yes"})
+			} else {
+				vals = append(vals, Value{Type: BulkString, Str: "no"})
+			}
+		case "appenddirname":
+			vals = append(vals, Value{Type: BulkString, Str: c.server.aof.config.dirName})
+		case "appendfilename":
+			vals = append(vals, Value{Type: BulkString, Str: c.server.aof.config.fileName})
+		case "appendfsync":
+			vals = append(vals, Value{Type: BulkString, Str: c.server.aof.config.appendfSync})
+		default:
+			return encodeError("ERR unknown value for 'CONFIG GET'")
 		}
 		return encodeArray(vals)
 	default:
-		return encodeError("ERR unknown value passed for 'CONFIG GET'")
+		return encodeError("ERR unknown value for 'CONFIG'")
 	}
 }
 
