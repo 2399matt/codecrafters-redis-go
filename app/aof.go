@@ -32,7 +32,7 @@ func NewAOF(cfg *AOFConfig) (*AOF, error) {
 	if err := os.MkdirAll(path, 0755); err != nil {
 		return nil, err
 	}
-	fullPath := filepath.Join(path, cfg.fileName)
+	fullPath := filepath.Join(path, cfg.fileName+".1.incr.aof")
 	file, err := os.OpenFile(fullPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {
 		return nil, err
