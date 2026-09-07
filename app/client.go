@@ -54,6 +54,9 @@ func handleCommand(c *Client, value Value) string {
 	if !c.server.isReplica && isWrite && !strings.HasPrefix(res, string(Error)) {
 		c.server.propagate(value)
 	}
+	if isWrite {
+		c.server.aof.appendEntry(encode(value))
+	}
 	return res
 }
 

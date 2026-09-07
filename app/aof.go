@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 )
 
@@ -58,6 +60,44 @@ func (a *AOF) createManifest() error {
 	}
 	defer file.Close()
 	if _, err := file.Write([]byte(fmt.Sprintf("file %s.1.incr.aof seq 1 type i", a.config.fileName))); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (a *AOF) getFileFromManifest() (string, error) {
+	path := filepath.Join(a.config.dir, a.config.dirName)
+	full := filepath.Join(path, a.config.fileName+".manifest")
+	file, err := os.Open(full)
+	if err != nil {
+		return "", err
+	}
+	var filename string
+	defer file.Close()
+	scan := bufio.NewScanner(file)
+	for scan.Scan() {
+		line := scan.Text()
+		parts := strings.Split(line, " ")
+		filename = parts[1]
+	}
+	if err = scan.Err(); err != nil {
+		return "", err
+	}
+	return filename, nil
+}
+
+func (a *AOF) appendEntry(resp string) error {
+	filename, err := a.getFileFromManifest()
+	if err != nil {
+		return err
+	}
+	path := filepath.Join(a.config.dir, a.config.dirName)
+	full := filepath.Join(path, filename)
+	file, err := os.OpenFile(full, os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	if _, err := file.Write([]byte(resp)); err != nil {
 		return err
 	}
 	return nil
