@@ -54,12 +54,15 @@ func (a *AOF) createManifest() error {
 	}
 	mPath := filepath.Join(a.config.dir, a.config.dirName)
 	fullPath := filepath.Join(mPath, a.config.fileName+".manifest")
+	if _, err := os.Stat(fullPath); err == nil {
+		return nil
+	}
 	file, err := os.OpenFile(fullPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
-	if _, err := file.Write([]byte(fmt.Sprintf("file %s.1.incr.aof seq 1 type i", a.config.fileName))); err != nil {
+	if _, err := file.Write([]byte(fmt.Sprintf("file %s.1.incr.aof seq 1 type i\n", a.config.fileName))); err != nil {
 		return err
 	}
 	return nil
@@ -86,21 +89,35 @@ func (a *AOF) getFileFromManifest() (string, error) {
 	return filename, nil
 }
 
+func (a *AOF) getFullPath() (string, error) {
+	filename, err := a.getFileFromManifest()
+	if err != nil {
+		return "", err
+	}
+	path := filepath.Join(a.config.dir, a.config.dirName)
+	full := filepath.Join(path, filename)
+	return full, nil
+}
+
 func (a *AOF) appendEntry(resp string) error {
 	if !a.config.enabled {
 		return fmt.Errorf("AOF not enabled")
 	}
-	filename, err := a.getFileFromManifest()
+	full, err := a.getFullPath()
 	if err != nil {
 		return err
 	}
-	path := filepath.Join(a.config.dir, a.config.dirName)
-	full := filepath.Join(path, filename)
+	// filename, err := a.getFileFromManifest()
+	// if err != nil {
+	// 	return err
+	// }
+	// path := filepath.Join(a.config.dir, a.config.dirName)
+	// full := filepath.Join(path, filename)
 	file, err := os.OpenFile(full, os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
 		return err
 	}
-	if _, err := file.Write([]byte(resp)); err != nil {
+	if _, err := file.WriteString(resp); err != nil {
 		return err
 	}
 	return nil

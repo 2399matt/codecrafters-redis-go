@@ -97,6 +97,11 @@ func main() {
 		log.Fatalf("unable to load/create RDB file: %v\n", err)
 	}
 	fmt.Printf("Listening on port: %s\n", port)
+	if server.aof.config.enabled {
+		if err := server.handleLoadAOF(); err != nil {
+			log.Fatalf("Failed to load from AOF: %v\n", err)
+		}
+	}
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
@@ -308,4 +313,32 @@ func (s *Server) handleMaster(parser *Parser, conn net.Conn) {
 			}
 		}
 	}
+}
+
+func (s *Server) handleLoadAOF() error {
+	// need a replay flag, getting infinite loop without it due to appendEntry being called in handleCommand
+	c := &Client{
+		Conn:     nil,
+		isQueued: false,
+		server:   s,
+		isReplay: true,
+	}
+	full, err := s.aof.getFullPath()
+	if err != nil {
+		return err
+	}
+	file, err := os.Open(full)
+	if err != nil {
+		return err
+	}
+	parser := NewParser(file)
+	for {
+		val, err := parser.parse()
+		if err != nil {
+			break
+		}
+		fmt.Printf("RECEIVED VALUE FROM AOF FILE: %#v\n", val)
+		handleCommand(c, val)
+	}
+	return nil
 }

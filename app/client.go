@@ -20,6 +20,7 @@ type Client struct {
 	server     *Server
 	watchQueue map[string]struct{}
 	replica    *Replica
+	isReplay   bool
 }
 
 func (c *Client) handleClient() {
@@ -54,7 +55,7 @@ func handleCommand(c *Client, value Value) string {
 	if !c.server.isReplica && isWrite && !strings.HasPrefix(res, string(Error)) {
 		c.server.propagate(value)
 	}
-	if isWrite {
+	if isWrite && !c.isReplay {
 		if err := c.server.aof.appendEntry(encode(value)); err != nil {
 			fmt.Printf("append aof failure: %v\n", err)
 		}
