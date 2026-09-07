@@ -67,15 +67,19 @@ func main() {
 	}
 	listener, err := net.Listen("tcp", "0.0.0.0:"+port)
 	if err != nil {
-		fmt.Printf("Failed to bind to port %s\n", port)
-		os.Exit(1)
+		log.Fatalf("Failed to bind to port %s\n", port)
 	}
 	config := createConfig(role, port, dbFileName, dir)
 	aofCfg := &AOFConfig{enabled: appendOnly, dir: dir, dirName: appendDirName, fileName: appendFileName, appendfSync: appendfSync}
 	fmt.Printf("DIR NAME FOR AOF: %s\n", appendDirName)
 	aof, err := NewAOF(aofCfg)
 	if err != nil {
-		log.Fatalf("unable to instantiate AOF: %v", err)
+		log.Fatalf("unable to instantiate AOF: %v\n", err)
+	}
+	if aof.config.enabled {
+		if err = aof.createManifest(); err != nil {
+			log.Fatalf("unable to create manifest: %v\n", err)
+		}
 	}
 	server = &Server{
 		storage:   NewStorage(),
@@ -90,7 +94,7 @@ func main() {
 		server.initHandShake()
 	}
 	if err = server.parseRDB(); err != nil {
-		log.Fatalf("unable to load/create RDB file: %v", err)
+		log.Fatalf("unable to load/create RDB file: %v\n", err)
 	}
 	fmt.Printf("Listening on port: %s\n", port)
 	for {
