@@ -115,9 +115,33 @@ func commandRouter(c *Client, value Value, command string) string {
 		return handleConfig(c, value)
 	case "KEYS":
 		return handleKeys(c, value)
+	case "SUBSCRIBE":
+		return handleSubscribe(c, value)
 	default:
 		return encodeError("ERR unknown command")
 	}
+}
+
+func handleSubscribe(c *Client, value Value) string {
+	if len(value.Array) < 2 {
+		return encodeError("ERR invalid arguments for 'SUBSCRIBE'")
+	}
+	cName := value.Array[1].Str
+	vals := []Value{
+		{
+			Type: BulkString,
+			Str:  "subscribe",
+		},
+		{
+			Type: BulkString,
+			Str:  cName,
+		},
+		{
+			Type: Integer,
+			Num:  1,
+		},
+	}
+	return encodeArray(vals)
 }
 
 func handleKeys(c *Client, value Value) string {
