@@ -24,6 +24,7 @@ type Server struct {
 	replOffset int64
 	ackChan    chan struct{}
 	aof        *AOF
+	pubsub     *PubSub
 }
 
 type Replica struct {
@@ -89,6 +90,7 @@ func main() {
 		mu:        &sync.Mutex{},
 		ackChan:   make(chan struct{}, 64),
 		aof:       aof,
+		pubsub:    NewPubSub(),
 	}
 	if server.isReplica {
 		server.initHandShake()

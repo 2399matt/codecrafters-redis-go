@@ -19,6 +19,7 @@ type Client struct {
 	queue      []Value
 	server     *Server
 	watchQueue map[string]struct{}
+	subQueue   []string
 	replica    *Replica
 	isReplay   bool
 }
@@ -127,6 +128,8 @@ func handleSubscribe(c *Client, value Value) string {
 		return encodeError("ERR invalid arguments for 'SUBSCRIBE'")
 	}
 	cName := value.Array[1].Str
+	c.server.pubsub.subscribe(c, cName)
+	c.subQueue = append(c.subQueue, cName)
 	vals := []Value{
 		{
 			Type: BulkString,
@@ -138,7 +141,7 @@ func handleSubscribe(c *Client, value Value) string {
 		},
 		{
 			Type: Integer,
-			Num:  1,
+			Num:  len(c.subQueue),
 		},
 	}
 	return encodeArray(vals)
