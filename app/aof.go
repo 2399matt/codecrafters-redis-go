@@ -87,6 +87,9 @@ func (a *AOF) getFileFromManifest() (string, error) {
 }
 
 func (a *AOF) appendEntry(resp string) error {
+	if !a.config.enabled {
+		return fmt.Errorf("AOF not enabled")
+	}
 	filename, err := a.getFileFromManifest()
 	if err != nil {
 		return err

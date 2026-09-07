@@ -55,7 +55,9 @@ func handleCommand(c *Client, value Value) string {
 		c.server.propagate(value)
 	}
 	if isWrite {
-		c.server.aof.appendEntry(encode(value))
+		if err := c.server.aof.appendEntry(encode(value)); err != nil {
+			fmt.Printf("append aof failure: %v\n", err)
+		}
 	}
 	return res
 }
