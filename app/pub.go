@@ -23,7 +23,7 @@ func (p *PubSub) subscribe(client chan string, name string) Channel {
 	defer p.mu.Unlock()
 	c, ok := p.channels[name]
 	if !ok {
-		subs := make([]chan string, 64)
+		subs := make([]chan string, 0)
 		subs = append(subs, client)
 		channel := Channel{subs: subs}
 		p.channels[name] = channel
@@ -32,4 +32,17 @@ func (p *PubSub) subscribe(client chan string, name string) Channel {
 	c.subs = append(c.subs, client)
 	p.channels[name] = c
 	return c
+}
+
+func (p *PubSub) publish(channelName, msg string) int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	c, ok := p.channels[channelName]
+	if !ok {
+		return 0
+	}
+	for _, ch := range c.subs {
+		ch <- msg
+	}
+	return len(c.subs)
 }

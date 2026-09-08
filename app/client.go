@@ -144,9 +144,20 @@ func commandRouter(c *Client, value Value, command string) string {
 		return handleKeys(c, value)
 	case "SUBSCRIBE":
 		return handleSubscribe(c, value)
+	case "PUBLISH":
+		return handlePublish(c, value)
 	default:
 		return encodeError("ERR unknown command")
 	}
+}
+
+func handlePublish(c *Client, value Value) string {
+	if len(value.Array) < 3 {
+		return encodeError("ERR missing arguments for 'PUBLISH'")
+	}
+	cName := value.Array[1].Str
+	aud := c.server.pubsub.publish(cName, value.Array[2].Str)
+	return encodeInteger(aud)
 }
 
 func handleSubscribe(c *Client, value Value) string {
