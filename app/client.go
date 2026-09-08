@@ -13,13 +13,15 @@ type XReadQuery struct {
 	id  StreamID
 }
 
+// TODO Client may need a "submode", with a separate handler if flagged to only accept proper commands
 type Client struct {
 	Conn       net.Conn
 	isQueued   bool
 	queue      []Value
 	server     *Server
 	watchQueue map[string]struct{}
-	subQueue   []string
+	subQueue   []chan string
+	subMode    bool
 	replica    *Replica
 	isReplay   bool
 }
@@ -52,6 +54,9 @@ func handleCommand(c *Client, value Value) string {
 		return encodeSimpleString("QUEUED")
 	}
 	isWrite := isWriteCommand(command)
+	if c.subMode {
+		return subModeRouter(c, value, command)
+	}
 	res := commandRouter(c, value, command)
 	if !c.server.isReplica && isWrite && !strings.HasPrefix(res, string(Error)) {
 		c.server.propagate(value)
@@ -62,6 +67,15 @@ func handleCommand(c *Client, value Value) string {
 		}
 	}
 	return res
+}
+
+func subModeRouter(c *Client, value Value, command string) string {
+	switch command {
+	case "SUBSCRIBE":
+		return handleSubscribe(c, value)
+	default:
+		return encodeError(fmt.Sprintf("ERR Can't execute '%s': only (P|S)SUBSCRIBE / (P|S)UNSUBSCRIBE / PING / QUIT / RESET are allowed in this context", command))
+	}
 }
 
 func commandRouter(c *Client, value Value, command string) string {
@@ -128,8 +142,9 @@ func handleSubscribe(c *Client, value Value) string {
 		return encodeError("ERR invalid arguments for 'SUBSCRIBE'")
 	}
 	cName := value.Array[1].Str
-	c.server.pubsub.subscribe(c, cName)
-	c.subQueue = append(c.subQueue, cName)
+	clientSub := make(chan string, 10)
+	c.subQueue = append(c.subQueue, clientSub)
+	c.server.pubsub.subscribe(clientSub, cName)
 	vals := []Value{
 		{
 			Type: BulkString,
@@ -144,6 +159,8 @@ func handleSubscribe(c *Client, value Value) string {
 			Num:  len(c.subQueue),
 		},
 	}
+	// set c.subMode == true?
+	c.subMode = true
 	return encodeArray(vals)
 }
 

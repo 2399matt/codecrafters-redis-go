@@ -8,7 +8,7 @@ type PubSub struct {
 }
 
 type Channel struct {
-	subs []*Client
+	subs []chan string
 }
 
 func NewPubSub() *PubSub {
@@ -18,12 +18,12 @@ func NewPubSub() *PubSub {
 	}
 }
 
-func (p *PubSub) subscribe(client *Client, name string) Channel {
+func (p *PubSub) subscribe(client chan string, name string) Channel {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	c, ok := p.channels[name]
 	if !ok {
-		subs := make([]*Client, 0)
+		subs := make([]chan string, 64)
 		subs = append(subs, client)
 		channel := Channel{subs: subs}
 		p.channels[name] = channel
