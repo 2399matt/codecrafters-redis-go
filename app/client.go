@@ -71,6 +71,18 @@ func handleCommand(c *Client, value Value) string {
 
 func subModeRouter(c *Client, value Value, command string) string {
 	switch command {
+	case "PING":
+		vals := []Value{
+			{
+				Type: BulkString,
+				Str:  "pong",
+			},
+			{
+				Type: BulkString,
+				Str:  "",
+			},
+		}
+		return encodeArray(vals)
 	case "SUBSCRIBE":
 		return handleSubscribe(c, value)
 	default:
