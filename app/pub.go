@@ -1,6 +1,9 @@
 package main
 
-import "sync"
+import (
+	"sync"
+	"time"
+)
 
 type PubSub struct {
 	mu       *sync.Mutex
@@ -8,7 +11,12 @@ type PubSub struct {
 }
 
 type Channel struct {
-	subs []chan string
+	subs []*Client
+}
+
+type Message struct {
+	channelName string
+	message     string
 }
 
 func NewPubSub() *PubSub {
@@ -18,20 +26,20 @@ func NewPubSub() *PubSub {
 	}
 }
 
-func (p *PubSub) subscribe(client chan string, name string) Channel {
+func (p *PubSub) subscribe(client *Client, name string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	client.subCount++
 	c, ok := p.channels[name]
 	if !ok {
-		subs := make([]chan string, 0)
+		subs := make([]*Client, 0)
 		subs = append(subs, client)
 		channel := Channel{subs: subs}
 		p.channels[name] = channel
-		return channel
+		return
 	}
 	c.subs = append(c.subs, client)
 	p.channels[name] = c
-	return c
 }
 
 func (p *PubSub) publish(channelName, msg string) int {
@@ -41,8 +49,28 @@ func (p *PubSub) publish(channelName, msg string) int {
 	if !ok {
 		return 0
 	}
-	for _, ch := range c.subs {
-		ch <- msg
+	vals := []Value{
+		{
+			Type: BulkString,
+			Str:  "message",
+		},
+		{
+			Type: BulkString,
+			Str:  channelName,
+		},
+		{
+			Type: BulkString,
+			Str:  msg,
+		},
+	}
+	for _, c := range c.subs {
+		c.writeMu.Lock()
+		c.Conn.SetWriteDeadline(time.Now().Add(time.Millisecond * 300))
+		if _, err := c.Conn.Write([]byte(encodeArray(vals))); err != nil {
+			c.Conn.Close()
+			c.writeMu.Unlock()
+			continue
+		}
 	}
 	return len(c.subs)
 }

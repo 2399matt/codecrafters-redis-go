@@ -5,6 +5,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -15,13 +16,14 @@ type XReadQuery struct {
 
 // TODO Client may need a "submode", with a separate handler if flagged to only accept proper commands
 type Client struct {
+	writeMu    *sync.Mutex
 	Conn       net.Conn
 	isQueued   bool
 	queue      []Value
 	server     *Server
 	watchQueue map[string]struct{}
-	subQueue   []chan string
 	subMode    bool
+	subCount   int
 	replica    *Replica
 	isReplay   bool
 }
@@ -37,10 +39,13 @@ func (c *Client) handleClient() {
 		}
 		fmt.Printf("Received: %#v\n", val)
 		response := handleCommand(c, val)
+		c.writeMu.Lock()
 		if _, err := c.Conn.Write([]byte(response)); err != nil {
 			c.Conn.Close()
+			c.writeMu.Unlock()
 			return
 		}
+		c.writeMu.Unlock()
 	}
 }
 
@@ -165,9 +170,7 @@ func handleSubscribe(c *Client, value Value) string {
 		return encodeError("ERR invalid arguments for 'SUBSCRIBE'")
 	}
 	cName := value.Array[1].Str
-	clientSub := make(chan string, 10)
-	c.subQueue = append(c.subQueue, clientSub)
-	c.server.pubsub.subscribe(clientSub, cName)
+	c.server.pubsub.subscribe(c, cName)
 	vals := []Value{
 		{
 			Type: BulkString,
@@ -179,7 +182,7 @@ func handleSubscribe(c *Client, value Value) string {
 		},
 		{
 			Type: Integer,
-			Num:  len(c.subQueue),
+			Num:  c.subCount,
 		},
 	}
 	// set c.subMode == true?
