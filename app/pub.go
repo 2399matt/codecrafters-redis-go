@@ -1,13 +1,14 @@
 package main
 
 import (
+	"slices"
 	"sync"
 	"time"
 )
 
 type PubSub struct {
 	mu       *sync.Mutex
-	channels map[string]Channel
+	channels map[string]*Channel
 }
 
 type Channel struct {
@@ -22,24 +23,45 @@ type Message struct {
 func NewPubSub() *PubSub {
 	return &PubSub{
 		mu:       &sync.Mutex{},
-		channels: make(map[string]Channel),
+		channels: make(map[string]*Channel),
 	}
 }
 
-func (p *PubSub) subscribe(client *Client, name string) {
+func (p *PubSub) subscribe(client *Client, name string) bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	client.subCount++
 	c, ok := p.channels[name]
 	if !ok {
 		subs := make([]*Client, 0)
 		subs = append(subs, client)
-		channel := Channel{subs: subs}
+		channel := &Channel{subs: subs}
 		p.channels[name] = channel
-		return
+		return true
 	}
-	c.subs = append(c.subs, client)
-	p.channels[name] = c
+	if !slices.Contains(c.subs, client) {
+		c.subs = append(c.subs, client)
+		return true
+	}
+	return false
+}
+
+func (p *PubSub) unsubscribe(client *Client, channelName string) bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	channels, ok := p.channels[channelName]
+	if !ok {
+		return false
+	}
+	for i, c := range channels.subs {
+		if c == client {
+			channels.subs = slices.Delete(channels.subs, i, i+1)
+			if len(channels.subs) == 0 {
+				delete(p.channels, channelName)
+			}
+			return true
+		}
+	}
+	return false
 }
 
 func (p *PubSub) publish(channelName, msg string) int {
@@ -71,6 +93,7 @@ func (p *PubSub) publish(channelName, msg string) int {
 			c.writeMu.Unlock()
 			continue
 		}
+		c.writeMu.Unlock()
 	}
 	return len(c.subs)
 }
