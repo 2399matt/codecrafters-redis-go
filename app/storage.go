@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"fmt"
 	"slices"
 	"strconv"
@@ -31,6 +32,7 @@ type Storage struct {
 	mu         *sync.RWMutex
 	table      map[string]Entry
 	watchkeys  map[string]struct{}
+	sets       map[string]*SortedSet
 }
 
 func NewStorage() *Storage {
@@ -40,6 +42,7 @@ func NewStorage() *Storage {
 		table:      make(map[string]Entry),
 		waiterPool: NewWaiterPool(),
 		watchkeys:  make(map[string]struct{}),
+		sets:       make(map[string]*SortedSet),
 	}
 }
 
@@ -48,6 +51,20 @@ func (s *Storage) Set(key string, entry Entry) {
 	s.table[key] = entry
 	delete(s.watchkeys, key)
 	s.mu.Unlock()
+}
+
+func (s *Storage) zAdd(score float64, setName, value string) int {
+	set, ok := s.sets[setName]
+	if !ok {
+		ss := &SortedSet{[]*SortedEntry{&SortedEntry{score, value}}}
+		s.sets[setName] = ss
+		return 1
+	}
+	set.entries = append(set.entries, &SortedEntry{score, value})
+	slices.SortFunc(set.entries, func(a, b *SortedEntry) int {
+		return cmp.Compare(a.score, b.score)
+	})
+	return 1
 }
 
 // TODO In here: rather than checkforwaiters, we can have a for loop on the values slice

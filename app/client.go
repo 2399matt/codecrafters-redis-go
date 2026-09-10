@@ -151,6 +151,8 @@ func commandRouter(c *Client, value Value, command string) string {
 		return handleSubscribe(c, value)
 	case "PUBLISH":
 		return handlePublish(c, value)
+	case "ZADD":
+		return handleZAdd(c, value)
 	default:
 		return encodeError("ERR unknown command")
 	}
@@ -158,7 +160,7 @@ func commandRouter(c *Client, value Value, command string) string {
 
 func isWriteCommand(command string) bool {
 	switch command {
-	case "SET", "RPUSH", "LPUSH", "LPOP", "BLPOP", "INCR", "XADD":
+	case "SET", "RPUSH", "LPUSH", "LPOP", "BLPOP", "INCR", "XADD", "ZADD":
 		return true
 	default:
 		return false

@@ -8,6 +8,7 @@ import (
 	"sync"
 )
 
+// TODO check on concurrent client write safety for replica/master --> (propogate / handlemaster)
 var server *Server
 
 func main() {
