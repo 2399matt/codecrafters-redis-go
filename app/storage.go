@@ -56,9 +56,15 @@ func (s *Storage) Set(key string, entry Entry) {
 func (s *Storage) zAdd(score float64, setName, value string) int {
 	set, ok := s.sets[setName]
 	if !ok {
-		ss := &SortedSet{[]*SortedEntry{&SortedEntry{score, value}}}
+		ss := &SortedSet{[]*SortedEntry{{score, value}}}
 		s.sets[setName] = ss
 		return 1
+	}
+	for _, e := range set.entries {
+		if e.value == value {
+			e.score = score
+			return 0
+		}
 	}
 	set.entries = append(set.entries, &SortedEntry{score, value})
 	slices.SortFunc(set.entries, func(a, b *SortedEntry) int {
