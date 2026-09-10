@@ -54,6 +54,8 @@ func (s *Storage) Set(key string, entry Entry) {
 }
 
 func (s *Storage) zRank(setName, member string) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	set, ok := s.sets[setName]
 	if !ok {
 		return -1
@@ -67,6 +69,8 @@ func (s *Storage) zRank(setName, member string) int {
 }
 
 func (s *Storage) zAdd(score float64, setName, member string) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	set, ok := s.sets[setName]
 	if !ok {
 		ss := &SortedSet{[]*SortedEntry{{score, member}}}
@@ -87,6 +91,24 @@ func (s *Storage) zAdd(score float64, setName, member string) int {
 		return cmp.Compare(a.member, b.member)
 	})
 	return 1
+}
+
+func (s *Storage) zRange(setName string, start, end int) ([]SortedEntry, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	set, ok := s.sets[setName]
+	if !ok {
+		return []SortedEntry{}, fmt.Errorf("set not found")
+	}
+	if start >= len(set.entries) {
+		return []SortedEntry{}, fmt.Errorf("start index too large")
+	}
+	end = min(len(set.entries)-1, end)
+	newSet := make([]SortedEntry, 0)
+	for i := start; i <= end; i++ {
+		newSet = append(newSet, *set.entries[i])
+	}
+	return newSet, nil
 }
 
 // TODO In here: rather than checkforwaiters, we can have a for loop on the values slice

@@ -40,3 +40,30 @@ func handleZRank(c *Client, value Value) string {
 	}
 	return encodeInteger(idx)
 }
+
+func handleZRange(c *Client, value Value) string {
+	if len(value.Array) < 4 {
+		return encodeError("ERR invalid arguments for 'ZRANGE'")
+	}
+	setName := value.Array[1].Str
+	start, err := strconv.Atoi(value.Array[2].Str)
+	if err != nil {
+		return encodeEmptyArray()
+	}
+	end, err := strconv.Atoi(value.Array[3].Str)
+	if err != nil {
+		return encodeEmptyArray()
+	}
+	if start > end {
+		return encodeEmptyArray()
+	}
+	members, err := c.server.storage.zRange(setName, start, end)
+	if err != nil {
+		return encodeEmptyArray()
+	}
+	vals := make([]Value, 0, len(members))
+	for _, m := range members {
+		vals = append(vals, Value{Type: BulkString, Str: m.member})
+	}
+	return encodeArray(vals)
+}
