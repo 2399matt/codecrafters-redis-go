@@ -153,6 +153,8 @@ func commandRouter(c *Client, value Value, command string) string {
 		return handlePublish(c, value)
 	case "ZADD":
 		return handleZAdd(c, value)
+	case "ZRANK":
+		return handleZRank(c, value)
 	default:
 		return encodeError("ERR unknown command")
 	}

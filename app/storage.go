@@ -53,22 +53,38 @@ func (s *Storage) Set(key string, entry Entry) {
 	s.mu.Unlock()
 }
 
-func (s *Storage) zAdd(score float64, setName, value string) int {
+func (s *Storage) zRank(setName, member string) int {
 	set, ok := s.sets[setName]
 	if !ok {
-		ss := &SortedSet{[]*SortedEntry{{score, value}}}
+		return -1
+	}
+	for i, e := range set.entries {
+		if e.member == member {
+			return i
+		}
+	}
+	return -1
+}
+
+func (s *Storage) zAdd(score float64, setName, member string) int {
+	set, ok := s.sets[setName]
+	if !ok {
+		ss := &SortedSet{[]*SortedEntry{{score, member}}}
 		s.sets[setName] = ss
 		return 1
 	}
 	for _, e := range set.entries {
-		if e.value == value {
+		if e.member == member {
 			e.score = score
 			return 0
 		}
 	}
-	set.entries = append(set.entries, &SortedEntry{score, value})
+	set.entries = append(set.entries, &SortedEntry{score, member})
 	slices.SortFunc(set.entries, func(a, b *SortedEntry) int {
-		return cmp.Compare(a.score, b.score)
+		if c := cmp.Compare(a.score, b.score); c != 0 {
+			return c
+		}
+		return cmp.Compare(a.member, b.member)
 	})
 	return 1
 }
