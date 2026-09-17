@@ -72,3 +72,16 @@ func handleZCard(c *Client, value Value) string {
 	}
 	return encodeInteger(c.server.storage.zCard(value.Array[1].Str))
 }
+
+func handleZScore(c *Client, value Value) string {
+	if len(value.Array) < 3 {
+		return encodeError("ERR invalid arguments for 'ZSCORE'")
+	}
+	setName := value.Array[1].Str
+	key := value.Array[2].Str
+	if score, err := c.server.storage.zScore(setName, key); err != nil {
+		return encodeNullString()
+	} else {
+		return encodeBulkString(score)
+	}
+}

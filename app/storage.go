@@ -93,6 +93,22 @@ func (s *Storage) zAdd(score float64, setName, member string) int {
 	return 1
 }
 
+func (s *Storage) zScore(setName, key string) (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	set, ok := s.sets[setName]
+	if !ok {
+		return "", fmt.Errorf("Invalid key for ZSCORE")
+	}
+	for _, v := range set.entries {
+		if v.member == key {
+			// -1 with 'f' to get exact precision
+			return strconv.FormatFloat(v.score, 'f', -1, 64), nil
+		}
+	}
+	return "", fmt.Errorf("Member not found for ZSCORE")
+}
+
 func (s *Storage) zCard(setName string) int {
 	s.mu.Lock()
 	defer s.mu.Unlock()

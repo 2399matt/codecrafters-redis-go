@@ -159,6 +159,8 @@ func commandRouter(c *Client, value Value, command string) string {
 		return handleZRange(c, value)
 	case "ZCARD":
 		return handleZCard(c, value)
+	case "ZSCORE":
+		return handleZScore(c, value)
 	default:
 		return encodeError("ERR unknown command")
 	}
