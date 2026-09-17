@@ -65,3 +65,10 @@ func handleZRange(c *Client, value Value) string {
 	}
 	return encodeArray(vals)
 }
+
+func handleZCard(c *Client, value Value) string {
+	if len(value.Array) < 2 {
+		return encodeError("ERR invalid arguments for 'ZCARD'")
+	}
+	return encodeInteger(c.server.storage.zCard(value.Array[1].Str))
+}

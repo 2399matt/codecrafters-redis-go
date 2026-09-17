@@ -93,6 +93,16 @@ func (s *Storage) zAdd(score float64, setName, member string) int {
 	return 1
 }
 
+func (s *Storage) zCard(setName string) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	set, ok := s.sets[setName]
+	if !ok {
+		return 0
+	}
+	return len(set.entries)
+}
+
 func (s *Storage) zRange(setName string, start, end int) ([]SortedEntry, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
