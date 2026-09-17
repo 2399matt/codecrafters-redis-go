@@ -78,10 +78,20 @@ func handleZScore(c *Client, value Value) string {
 		return encodeError("ERR invalid arguments for 'ZSCORE'")
 	}
 	setName := value.Array[1].Str
-	key := value.Array[2].Str
-	if score, err := c.server.storage.zScore(setName, key); err != nil {
+	member := value.Array[2].Str
+	if score, err := c.server.storage.zScore(setName, member); err != nil {
 		return encodeNullString()
 	} else {
 		return encodeBulkString(score)
 	}
+}
+
+func handleZRem(c *Client, value Value) string {
+	fmt.Printf("LEN OF ARR: %d", len(value.Array))
+	if len(value.Array) < 3 {
+		return encodeError("ERR invalid arguments for 'ZREM'")
+	}
+	setName := value.Array[1].Str
+	member := value.Array[2].Str
+	return encodeInteger(c.server.storage.zRem(setName, member))
 }
