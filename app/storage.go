@@ -100,10 +100,24 @@ func (s *Storage) zRange(setName string, start, end int) ([]SortedEntry, error) 
 	if !ok {
 		return []SortedEntry{}, fmt.Errorf("set not found")
 	}
+	fmt.Printf("START: %d, END: %d\n", start, end)
+	if start < 0 {
+		start = start + len(set.entries)
+		start = max(start, 0)
+	}
+	if end < 0 {
+		end = end + len(set.entries)
+		end = max(0, end)
+	} else {
+		end = min(len(set.entries)-1, end)
+	}
+	fmt.Printf("START: %d, END: %d\n", start, end)
+	if start > end {
+		return []SortedEntry{}, fmt.Errorf("start/end err")
+	}
 	if start >= len(set.entries) {
 		return []SortedEntry{}, fmt.Errorf("start index too large")
 	}
-	end = min(len(set.entries)-1, end)
 	newSet := make([]SortedEntry, 0)
 	for i := start; i <= end; i++ {
 		newSet = append(newSet, *set.entries[i])
@@ -269,6 +283,8 @@ func (s *Storage) increment(key string) (int, error) {
 }
 
 func (s *Storage) getLastStreamID(streamKey string) StreamID {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	entry, ok := s.table[streamKey]
 	if ok {
 		return entry.stream.lastID

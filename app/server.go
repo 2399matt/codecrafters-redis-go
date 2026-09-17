@@ -267,3 +267,10 @@ func (s *Server) handleLoadAOF() error {
 	}
 	return nil
 }
+
+func needsResponse(value Value) bool {
+	if len(value.Array) >= 2 {
+		return value.Array[0].Str == "REPLCONF" && value.Array[1].Str == "GETACK"
+	}
+	return false
+}

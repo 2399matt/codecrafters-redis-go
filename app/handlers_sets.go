@@ -50,11 +50,9 @@ func handleZRange(c *Client, value Value) string {
 	if err != nil {
 		return encodeEmptyArray()
 	}
+	// almost exact logic from lrange
 	end, err := strconv.Atoi(value.Array[3].Str)
 	if err != nil {
-		return encodeEmptyArray()
-	}
-	if start > end {
 		return encodeEmptyArray()
 	}
 	members, err := c.server.storage.zRange(setName, start, end)
