@@ -27,6 +27,30 @@ func handleGeoAdd(c *Client, value Value) string {
 	return encodeInteger(c.server.storage.zAdd(float64(score), key, member))
 }
 
+func handleGeoPos(c *Client, value Value) string {
+	if len(value.Array) < 3 {
+		return encodeError("ERR invalid arguments for 'GEOPOS'")
+	}
+	key := value.Array[1].Str
+	vals := make([]Value, 0)
+	for i := 2; i < len(value.Array); i++ {
+		member := value.Array[i].Str
+		if _, err := c.server.storage.zScore(key, member); err != nil {
+			vals = append(vals, Value{Type: Array, Array: nil})
+		} else {
+			pairs := Value{
+				Type: Array,
+				Array: []Value{
+					{Type: BulkString, Str: "0"},
+					{Type: BulkString, Str: "0"},
+				},
+			}
+			vals = append(vals, pairs)
+		}
+	}
+	return encodeArray(vals)
+}
+
 func isValidCoords(lat, lon float64) bool {
 	return (lon > -180 && lon < 180) && (lat > -85.05112878 && lat < 85.05112878)
 }

@@ -157,6 +157,10 @@ func encodeArray(values []Value) string {
 	var result strings.Builder
 	result.WriteString(fmt.Sprintf("*%d\r\n", len(values)))
 	for _, val := range values {
+		if val.Type == Array && val.Array == nil {
+			result.WriteString(encodeNullArray())
+			continue
+		}
 		result.WriteString(encode(val))
 	}
 	return result.String()

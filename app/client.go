@@ -165,6 +165,8 @@ func commandRouter(c *Client, value Value, command string) string {
 		return handleZRem(c, value)
 	case "GEOADD":
 		return handleGeoAdd(c, value)
+	case "GEOPOS":
+		return handleGeoPos(c, value)
 	default:
 		return encodeError("ERR unknown command")
 	}
