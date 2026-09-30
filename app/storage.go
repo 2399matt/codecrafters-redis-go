@@ -342,11 +342,18 @@ func (s *Storage) addWatchKeys(keys []string) {
 	}
 }
 
+// TODO Adding a loop for the sets table. Other option is to remove sets table and add a new Type to Entry, keeping everything in one table
+// That's a bigger change, but might be needed later?
 func (s *Storage) getKeys(target string) []string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	res := make([]string, 0, len(s.table))
 	for k := range s.table {
+		if strings.HasPrefix(k, target) {
+			res = append(res, k)
+		}
+	}
+	for k := range s.sets {
 		if strings.HasPrefix(k, target) {
 			res = append(res, k)
 		}
