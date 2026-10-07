@@ -1,7 +1,10 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -120,4 +123,22 @@ func handleGetUser(user *User) string {
 	vals = append(vals, Value{Type: BulkString, Str: "passwords"})
 	vals = append(vals, passVals)
 	return encodeArray(vals)
+}
+
+func handleAuth(c *Client, value Value) string {
+	if len(value.Array) < 3 {
+		return encodeError("ERR invalid arguments for 'AUTH'")
+	}
+	username := value.Array[1].Str
+	pass := value.Array[2].Str
+	hash := sha256.Sum256([]byte(pass))
+	cmp := hex.EncodeToString(hash[0:])
+	user := c.server.acl.Get(username)
+	if user == nil || user.nopass {
+		return encodeError("WRONGPASS invalid username-password pair or user is disabled.")
+	}
+	if slices.Contains(user.passwords, cmp) {
+		return encodeSimpleString("OK")
+	}
+	return encodeError("WRONGPASS invalid username-password pair or user is disabled.")
 }

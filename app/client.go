@@ -173,6 +173,8 @@ func commandRouter(c *Client, value Value, command string) string {
 		return handleGeoSearch(c, value)
 	case "ACL":
 		return handleAcl(c, value)
+	case "AUTH":
+		return handleAuth(c, value)
 	default:
 		return encodeError("ERR unknown command")
 	}

@@ -39,5 +39,6 @@ func (a *ACL) updateUser(user *User, password string) {
 	defer a.mu.Unlock()
 	hash := sha256.Sum256([]byte(password))
 	user.passwords = append(user.passwords, hex.EncodeToString(hash[0:]))
+	user.nopass = false
 	user.flags = slices.DeleteFunc(user.flags, func(s string) bool { return s == "nopass" })
 }
