@@ -70,6 +70,9 @@ func handleAcl(c *Client, value Value) string {
 	switch cmd {
 	case "WHOAMI":
 		return encodeBulkString("default")
+	case "GETUSER":
+		vals := []Value{{Type: BulkString, Str: "flags"}, {Type: Array, Array: make([]Value, 0)}}
+		return encodeArray(vals)
 	default:
 		return encodeError(fmt.Sprintf("ERR unknown command for ACL: %s", cmd))
 	}
