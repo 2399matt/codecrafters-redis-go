@@ -59,6 +59,47 @@ func handleGeoPos(c *Client, value Value) string {
 	return encodeArray(vals)
 }
 
+func handleGeoDist(c *Client, value Value) string {
+	if len(value.Array) < 4 {
+		return encodeError("ERR invalid arguments for 'GEODIST'")
+	}
+	key := value.Array[1].Str
+	score1Str, err := c.server.storage.zScore(key, value.Array[2].Str)
+	if err != nil {
+		return encodeError(fmt.Sprintf("ERR %s", err.Error()))
+	}
+	score2Str, err := c.server.storage.zScore(key, value.Array[3].Str)
+	if err != nil {
+		return encodeError(fmt.Sprintf("ERR %s", err.Error()))
+	}
+	score1, err := strconv.ParseFloat(score1Str, 64)
+	if err != nil {
+		return encodeError(fmt.Sprintf("ERR %s", err.Error()))
+	}
+	score2, err := strconv.ParseFloat(score2Str, 64)
+	if err != nil {
+		return encodeError(fmt.Sprintf("ERR %s", err.Error()))
+	}
+	fLat, fLon := decodeCoords(uint64(score1))
+	sLat, sLon := decodeCoords(uint64(score2))
+	dist := haversine(fLat, fLon, sLat, sLon)
+	return encodeBulkString(strconv.FormatFloat(dist, 'f', 4, 64))
+}
+
+func haversine(lat1, lon1, lat2, lon2 float64) float64 {
+	rEarth := 6372797.560856
+	lat1 = lat1 * (math.Pi / 180)
+	lat2 = lat2 * (math.Pi / 180)
+	lon1 = lon1 * (math.Pi / 180)
+	lon2 = lon2 * (math.Pi / 180)
+	dLat := lat2 - lat1
+	dLon := lon2 - lon1
+	// can probably get rid of Pow and just mult
+	a := math.Pow(math.Sin(dLat/2), 2) + (math.Cos(lat1) * math.Cos(lat2) * math.Pow(math.Sin(dLon/2), 2))
+	c := 2 * math.Asin(math.Sqrt(a))
+	return rEarth * c
+}
+
 func isValidCoords(lat, lon float64) bool {
 	return (lon > -180 && lon < 180) && (lat > -85.05112878 && lat < 85.05112878)
 }
