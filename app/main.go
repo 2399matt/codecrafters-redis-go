@@ -58,6 +58,7 @@ func main() {
 		ackChan:   make(chan struct{}, 64),
 		aof:       aof,
 		pubsub:    NewPubSub(),
+		acl:       &ACL{&sync.Mutex{}, make(map[string]*User)},
 	}
 	if server.isReplica {
 		server.initHandShake()
@@ -71,6 +72,8 @@ func main() {
 			log.Fatalf("Failed to load from AOF: %v\n", err)
 		}
 	}
+	//temp
+	server.acl.createDefaultUser()
 	for {
 		conn, err := listener.Accept()
 		if err != nil {

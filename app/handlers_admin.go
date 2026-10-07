@@ -71,7 +71,17 @@ func handleAcl(c *Client, value Value) string {
 	case "WHOAMI":
 		return encodeBulkString("default")
 	case "GETUSER":
-		vals := []Value{{Type: BulkString, Str: "flags"}, {Type: Array, Array: make([]Value, 0)}}
+		vals := []Value{{Type: BulkString, Str: "flags"}}
+		flagVals := Value{Type: Array, Array: make([]Value, 0)}
+		name := value.Array[2].Str
+		user := c.server.acl.Get(name)
+		if user == nil {
+			return encodeError("ERR user not found")
+		}
+		for _, flag := range user.flags {
+			flagVals.Array = append(flagVals.Array, Value{Type: BulkString, Str: flag})
+		}
+		vals = append(vals, flagVals)
 		return encodeArray(vals)
 	default:
 		return encodeError(fmt.Sprintf("ERR unknown command for ACL: %s", cmd))

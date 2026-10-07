@@ -18,12 +18,18 @@ const (
 	StreamType
 )
 
+type User struct {
+	username string
+	flags    []string
+}
+
 type Entry struct {
 	Type       ValueType
 	List       []string
 	payload    string
 	expiration time.Time
 	stream     *Stream
+	user       *User
 }
 
 type Storage struct {

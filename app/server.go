@@ -21,6 +21,7 @@ type Server struct {
 	ackChan    chan struct{}
 	aof        *AOF
 	pubsub     *PubSub
+	acl        *ACL
 }
 
 type Replica struct {
