@@ -74,9 +74,33 @@ func handleAcl(c *Client, value Value) string {
 		name := value.Array[2].Str
 		user := c.server.acl.Get(name)
 		return handleGetUser(user)
+	case "SETUSER":
+		if len(value.Array) < 4 {
+			return encodeError("ERR invalid arguments for 'SETUSER'")
+		}
+		name := value.Array[2].Str
+		user := c.server.acl.Get(name)
+		return handleSetUser(c, user, value)
 	default:
 		return encodeError(fmt.Sprintf("ERR unknown command for ACL: %s", cmd))
 	}
+}
+
+func handleSetUser(c *Client, user *User, value Value) string {
+	if user == nil {
+		return encodeError("ERR user not found")
+	}
+	pass := value.Array[3].Str
+	update := false
+	if strings.HasPrefix(pass, ">") {
+		pass = pass[1:]
+		update = true
+	}
+	if update {
+		c.server.acl.updateUser(user, pass)
+	}
+	return encodeSimpleString("OK")
+
 }
 
 func handleGetUser(user *User) string {

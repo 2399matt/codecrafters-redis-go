@@ -1,9 +1,15 @@
 package main
 
-import "sync"
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"slices"
+	"sync"
+)
 
 type User struct {
 	username  string
+	nopass    bool
 	flags     []string
 	passwords []string
 }
@@ -25,4 +31,13 @@ func (a *ACL) createDefaultUser() {
 	defer a.mu.Unlock()
 	user := &User{username: "default", flags: []string{"nopass"}}
 	a.users[user.username] = user
+}
+
+// check to see if we actually need the lock here. We have a pointer in admin to modify.
+func (a *ACL) updateUser(user *User, password string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	hash := sha256.Sum256([]byte(password))
+	user.passwords = append(user.passwords, hex.EncodeToString(hash[0:]))
+	user.flags = slices.DeleteFunc(user.flags, func(s string) bool { return s == "nopass" })
 }
