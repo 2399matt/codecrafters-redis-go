@@ -135,10 +135,10 @@ func handleAuth(c *Client, value Value) string {
 	cmp := hex.EncodeToString(hash[0:])
 	user := c.server.acl.Get(username)
 	if user == nil || user.nopass {
-		return encodeError("WRONGPASS invalid username-password pair or user is disabled.")
+		return encodeAuthError()
 	}
 	if slices.Contains(user.passwords, cmp) {
 		return encodeSimpleString("OK")
 	}
-	return encodeError("WRONGPASS invalid username-password pair or user is disabled.")
+	return encodeAuthError()
 }

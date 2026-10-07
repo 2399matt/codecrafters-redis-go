@@ -29,7 +29,7 @@ func (a *ACL) Get(username string) *User {
 func (a *ACL) createDefaultUser() {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	user := &User{username: "default", flags: []string{"nopass"}}
+	user := &User{username: "default", nopass: true, flags: []string{"nopass"}}
 	a.users[user.username] = user
 }
 

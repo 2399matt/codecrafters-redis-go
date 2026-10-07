@@ -221,7 +221,8 @@ func (s *Server) countAcks(offset int64) int {
 }
 
 func (s *Server) handleMaster(parser *Parser, conn net.Conn) {
-	master := &Client{Conn: conn, server: s}
+	// setting auto-auth here for writes.
+	master := &Client{Conn: conn, server: s, authUser: "default"}
 	defer conn.Close()
 	for {
 		val, err := parser.parse()

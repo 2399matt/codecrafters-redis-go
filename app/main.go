@@ -80,7 +80,13 @@ func main() {
 			fmt.Printf("unable to accept client: %v\n", err)
 			continue
 		}
+		//TODO come back to this for pass
 		client := &Client{Conn: conn, queue: make([]Value, 0), watchQueue: make(map[string]struct{}), server: server, writeMu: &sync.Mutex{}}
+		if server.acl.Get("default").nopass {
+			client.authUser = "default"
+		} else {
+			client.authUser = ""
+		}
 		go client.handleClient()
 	}
 }

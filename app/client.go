@@ -24,6 +24,7 @@ type Client struct {
 	subCount   int
 	replica    *Replica
 	isReplay   bool
+	authUser   string
 }
 
 func (c *Client) handleClient() {
@@ -52,6 +53,10 @@ func handleCommand(c *Client, value Value) string {
 		return encodeError("ERR invalid command")
 	}
 	command := strings.ToUpper(value.Array[0].Str)
+	//TODO come back here for pass
+	if !c.isReplay && c.authUser == "" && command != "AUTH" {
+		return encodeError("NOAUTH Authentication required.")
+	}
 	if c.isQueued && command != "EXEC" && command != "MULTI" && command != "DISCARD" && command != "WATCH" {
 		c.queue = append(c.queue, value)
 		return encodeSimpleString("QUEUED")

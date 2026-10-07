@@ -149,6 +149,10 @@ func encodeEmptyArray() string {
 	return "*0\r\n"
 }
 
+func encodeAuthError() string {
+	return encodeError("WRONGPASS invalid username-password pair or user is disabled.")
+}
+
 func encodeNullArray() string {
 	return "*-1\r\n"
 }
