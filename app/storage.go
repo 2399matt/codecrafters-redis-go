@@ -68,6 +68,20 @@ func (s *Storage) zRank(setName, member string) int {
 	return -1
 }
 
+func (s *Storage) getSetMembers(setName string) []SortedEntry {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	set, ok := s.sets[setName]
+	if !ok {
+		return nil
+	}
+	cpy := make([]SortedEntry, 0, len(set.entries))
+	for _, v := range set.entries {
+		cpy = append(cpy, *v)
+	}
+	return cpy
+}
+
 func (s *Storage) zAdd(score float64, setName, member string) int {
 	s.mu.Lock()
 	defer s.mu.Unlock()

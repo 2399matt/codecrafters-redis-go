@@ -86,6 +86,41 @@ func handleGeoDist(c *Client, value Value) string {
 	return encodeBulkString(strconv.FormatFloat(dist, 'f', 4, 64))
 }
 
+func handleGeoSearch(c *Client, value Value) string {
+	if len(value.Array) < 8 {
+		return encodeError("ERR invalid arguments for 'GEOSEARCH'")
+	}
+	vals := make([]Value, 0)
+	key := value.Array[1].Str
+	target, err := strconv.ParseFloat(value.Array[6].Str, 64)
+	if err != nil {
+		fmt.Printf("%s\n", err.Error())
+		return encodeError("ERR invalid targe distance")
+	}
+	cLat, err := strconv.ParseFloat(value.Array[4].Str, 64)
+	if err != nil {
+		fmt.Printf("%s\n", err.Error())
+		return encodeError(fmt.Sprintf("ERR %s", err.Error()))
+	}
+	cLon, err := strconv.ParseFloat(value.Array[3].Str, 64)
+	if err != nil {
+		fmt.Printf("%s\n", err.Error())
+		return encodeError(fmt.Sprintf("ERR %s", err.Error()))
+	}
+	set := c.server.storage.getSetMembers(key)
+	if set == nil {
+		return encodeError("ERR set not found")
+	}
+	for _, mem := range set {
+		currLat, currLon := decodeCoords(uint64(mem.score))
+		if haversine(currLat, currLon, cLat, cLon) <= target {
+			fmt.Printf("ADDING MEMBER: %s\n", mem.member)
+			vals = append(vals, Value{Type: BulkString, Str: mem.member})
+		}
+	}
+	return encodeArray(vals)
+}
+
 func haversine(lat1, lon1, lat2, lon2 float64) float64 {
 	rEarth := 6372797.560856
 	lat1 = lat1 * (math.Pi / 180)
