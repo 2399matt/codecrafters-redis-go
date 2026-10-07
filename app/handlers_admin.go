@@ -1,6 +1,9 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 func handleInfo(c *Client, value Value) string {
 	if len(value.Array) < 2 {
@@ -59,5 +62,15 @@ func handleConfig(c *Client, value Value) string {
 		return encodeArray(vals)
 	default:
 		return encodeError("ERR unknown value for 'CONFIG'")
+	}
+}
+
+func handleAcl(c *Client, value Value) string {
+	cmd := strings.ToUpper(value.Array[1].Str)
+	switch cmd {
+	case "WHOAMI":
+		return encodeBulkString("default")
+	default:
+		return encodeError(fmt.Sprintf("ERR unknown command for ACL: %s", cmd))
 	}
 }

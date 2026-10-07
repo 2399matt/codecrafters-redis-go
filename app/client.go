@@ -171,6 +171,8 @@ func commandRouter(c *Client, value Value, command string) string {
 		return handleGeoDist(c, value)
 	case "GEOSEARCH":
 		return handleGeoSearch(c, value)
+	case "ACL":
+		return handleAcl(c, value)
 	default:
 		return encodeError("ERR unknown command")
 	}
