@@ -6,6 +6,11 @@ import (
 	"strconv"
 )
 
+var MIN_LATITUDE = -85.05112878
+var MAX_LATITUDE = 85.05112878
+var MIN_LONGITUDE = -180.0
+var MAX_LONGITUDE = 180.0
+
 func handleGeoAdd(c *Client, value Value) string {
 	if len(value.Array) < 5 {
 		return encodeError("ERR invalid arguments for 'GEOADD'")
@@ -35,14 +40,17 @@ func handleGeoPos(c *Client, value Value) string {
 	vals := make([]Value, 0)
 	for i := 2; i < len(value.Array); i++ {
 		member := value.Array[i].Str
-		if _, err := c.server.storage.zScore(key, member); err != nil {
+		if scoreStr, err := c.server.storage.zScore(key, member); err != nil {
 			vals = append(vals, Value{Type: Array, Array: nil})
 		} else {
+			scoreFloat, _ := strconv.ParseFloat(scoreStr, 64)
+			score := uint64(scoreFloat)
+			lat, lon := decodeCoords(score)
 			pairs := Value{
 				Type: Array,
 				Array: []Value{
-					{Type: BulkString, Str: "0"},
-					{Type: BulkString, Str: "0"},
+					{Type: BulkString, Str: strconv.FormatFloat(lon, 'f', -1, 64)},
+					{Type: BulkString, Str: strconv.FormatFloat(lat, 'f', -1, 64)},
 				},
 			}
 			vals = append(vals, pairs)
@@ -56,11 +64,6 @@ func isValidCoords(lat, lon float64) bool {
 }
 
 func encodeCoords(lat, lon float64) uint64 {
-	MIN_LATITUDE := -85.05112878
-	MAX_LATITUDE := 85.05112878
-	MIN_LONGITUDE := -180.0
-	MAX_LONGITUDE := 180.0
-
 	latRange := MAX_LATITUDE - MIN_LATITUDE
 	lonRange := MAX_LONGITUDE - MIN_LONGITUDE
 	normLat := uint32(math.Pow(2, 26) * (lat - MIN_LATITUDE) / latRange)
@@ -79,4 +82,30 @@ func interleave(lat, lon uint32) uint64 {
 		res = res | (lonBit << (2*i + 1))
 	}
 	return res
+}
+
+func deInterleave(score uint64) (uint32, uint32) {
+	var lat, lon uint32
+	for i := range 26 {
+		latBit := score >> (2 * i) & 1
+		lonBit := score >> (2*i + 1) & 1
+		lat = lat | uint32(latBit)<<i
+		lon = lon | uint32(lonBit)<<i
+	}
+	return lat, lon
+}
+
+func decodeCoords(score uint64) (float64, float64) {
+	var lat, lon float64
+	normLat, normLon := deInterleave(score)
+	latRange := MAX_LATITUDE - MIN_LATITUDE
+	lonRange := MAX_LONGITUDE - MIN_LONGITUDE
+	// have to center here
+	latMin := (latRange*float64(normLat))/math.Pow(2, 26) + MIN_LATITUDE
+	latMax := (latRange*float64(normLat+1))/math.Pow(2, 26) + MIN_LATITUDE
+	lonMin := (lonRange*float64(normLon))/math.Pow(2, 26) + MIN_LONGITUDE
+	lonMax := (lonRange*float64(normLon+1))/math.Pow(2, 26) + MIN_LONGITUDE
+	lat = (latMin + latMax) / 2
+	lon = (lonMin + lonMax) / 2
+	return lat, lon
 }
