@@ -2,6 +2,12 @@ package main
 
 import "sync"
 
+type User struct {
+	username  string
+	flags     []string
+	passwords []string
+}
+
 type ACL struct {
 	mu    *sync.Mutex
 	users map[string]*User

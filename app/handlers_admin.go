@@ -71,19 +71,29 @@ func handleAcl(c *Client, value Value) string {
 	case "WHOAMI":
 		return encodeBulkString("default")
 	case "GETUSER":
-		vals := []Value{{Type: BulkString, Str: "flags"}}
-		flagVals := Value{Type: Array, Array: make([]Value, 0)}
 		name := value.Array[2].Str
 		user := c.server.acl.Get(name)
-		if user == nil {
-			return encodeError("ERR user not found")
-		}
-		for _, flag := range user.flags {
-			flagVals.Array = append(flagVals.Array, Value{Type: BulkString, Str: flag})
-		}
-		vals = append(vals, flagVals)
-		return encodeArray(vals)
+		return handleGetUser(user)
 	default:
 		return encodeError(fmt.Sprintf("ERR unknown command for ACL: %s", cmd))
 	}
+}
+
+func handleGetUser(user *User) string {
+	if user == nil {
+		return encodeError("ERR user not found")
+	}
+	vals := []Value{{Type: BulkString, Str: "flags"}}
+	flagVals := Value{Type: Array, Array: make([]Value, 0)}
+	passVals := Value{Type: Array, Array: make([]Value, 0)}
+	for _, flag := range user.flags {
+		flagVals.Array = append(flagVals.Array, Value{Type: BulkString, Str: flag})
+	}
+	for _, pass := range user.passwords {
+		passVals.Array = append(passVals.Array, Value{Type: BulkString, Str: pass})
+	}
+	vals = append(vals, flagVals)
+	vals = append(vals, Value{Type: BulkString, Str: "passwords"})
+	vals = append(vals, passVals)
+	return encodeArray(vals)
 }
